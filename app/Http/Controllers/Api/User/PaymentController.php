@@ -59,23 +59,38 @@ class PaymentController extends Controller
             'payment' => $payment
         ]);
     }
-    private function initiateClickPesaPayment($payment)
-    {
-        $clientId = env('CLICKPESA_CLIENT_ID');
-        $apiKey = env('CLICKPESA_API_KEY');
+private function initiateClickPesaPayment($payment)
+{
+    $apiKey = env('CLICKPESA_API_KEY');
 
-        $response = Http::withHeaders([
+    $payload = [
+        'amount' => $payment->amount,
+        'currency' => 'TZS',
+        'reference' => (string) $payment->id,
+        'callback_url' => env('CLICKPESA_CALLBACK_URL'),
+    ];
+
+    Log::info('ClickPesa Payload', $payload);
+
+    $response = Http::timeout(30)
+        ->withHeaders([
             'Authorization' => "Bearer $apiKey",
-            'Content-Type' => 'application/json'
-        ])->post(env('CLICKPESA_BASE_URL') . '/payments', [
-            'amount' => $payment->amount,
-            'currency' => 'TZS',
-            'reference' => $payment->id,
-            'callback_url' => env('CLICKPESA_CALLBACK_URL'),
-        ]);
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+        ])
+        ->post(env('CLICKPESA_BASE_URL') . '/payments', $payload);
 
-        return $response->json();
+    Log::info('ClickPesa Response', [
+        'status' => $response->status(),
+        'body' => $response->body(),
+    ]);
+
+    if (!$response->successful()) {
+        throw new \Exception($response->body());
     }
+
+    return $response->json();
+}
     /**
      * Store a newly created resource in storage.
      */
