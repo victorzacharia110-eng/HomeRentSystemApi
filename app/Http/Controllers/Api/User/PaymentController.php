@@ -67,7 +67,7 @@ class PaymentController extends Controller
         $response = Http::withHeaders([
             'Authorization' => "Bearer $apiKey",
             'Content-Type' => 'application/json'
-        ])->post(env('CLICKPESA_BASE_URL') . '/payment', [
+        ])->post(env('CLICKPESA_BASE_URL') . '/payments', [
             'amount' => $payment->amount,
             'currency' => 'TZS',
             'reference' => $payment->id,
