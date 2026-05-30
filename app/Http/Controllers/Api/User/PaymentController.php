@@ -146,7 +146,9 @@ class PaymentController extends Controller
     public function show(string $id)
     {
         $payment = Payment::find($id);
-        return response()->json($payment);
+        return response()->json([
+            'payment' => $payment
+        ]);
     }
 
     /**
