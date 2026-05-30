@@ -71,10 +71,13 @@ class RoomController extends Controller
 
     /**
      * Display the specified resource.
-     */
-    public function show(string $id)
+     */ public function show(string $id)
     {
-        //
+        $room = Room::findOrFail($id);
+
+        return response()->json([
+            'room' => $room
+        ]);
     }
 
     /**
@@ -98,38 +101,38 @@ class RoomController extends Controller
         ]);
     }
 
-public function updateRoomStatus(Request $request, string $id)
-{
-    // Validate input
-    $request->validate([
-        'status' => 'required|in:Available,Occupied,Maintenance',
-    ]);
+    public function updateRoomStatus(Request $request, string $id)
+    {
+        // Validate input
+        $request->validate([
+            'status' => 'required|in:Available,Occupied,Maintenance',
+        ]);
 
-    // Find room or fail automatically
-    $roomStatus = Room::findOrFail($id);
+        // Find room or fail automatically
+        $roomStatus = Room::findOrFail($id);
 
-    // Update room
-    $roomStatus->user_id = auth()->id();
-    $roomStatus->status = $request->status;
-    $roomStatus->save();
+        // Update room
+        $roomStatus->user_id = auth()->id();
+        $roomStatus->status = $request->status;
+        $roomStatus->save();
 
-    // Get logged-in user
-    $user = auth()->user();
+        // Get logged-in user
+        $user = auth()->user();
 
-    // Assign or remove room based on status
-    if ($request->status === 'Occupied') {
-        $user->room_id = $roomStatus->id;
-    } else {
-        $user->room_id = null;
+        // Assign or remove room based on status
+        if ($request->status === 'Occupied') {
+            $user->room_id = $roomStatus->id;
+        } else {
+            $user->room_id = null;
+        }
+
+        $user->save();
+
+        return response()->json([
+            "message" => "Room status updated successfully",
+            "room" => $roomStatus,
+        ]);
     }
-
-    $user->save();
-
-    return response()->json([
-        "message" => "Room status updated successfully",
-        "room" => $roomStatus,
-    ]);
-}
     /**
      * Remove the specified resource from storage.
      */
