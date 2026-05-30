@@ -98,10 +98,7 @@ class PaymentController extends Controller
             );
         }
 
-        return response()->json([
-            'payment' => $payment,
-            'gateway' => $response
-        ]);
+        return response()->json();
     }
     /**
      * Store a newly created resource in storage.

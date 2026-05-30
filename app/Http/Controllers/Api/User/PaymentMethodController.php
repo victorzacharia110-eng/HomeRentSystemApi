@@ -13,7 +13,7 @@ class PaymentMethodController extends Controller
      */
     public function index()
     {
-        $paymentMethods = PaymentMethod::orderBy("created_at","desc")->get();
+        $paymentMethods = PaymentMethod::orderBy("created_at", "desc")->get();
         return response()->json(['paymentMethods' => $paymentMethods]);
     }
 
@@ -50,7 +50,11 @@ class PaymentMethodController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $paymentMethod = PaymentMethod::findOrFail($id);
+
+        return response()->json([
+            'paymentMethod' => $paymentMethod
+        ]);
     }
 
     /**
@@ -58,9 +62,22 @@ class PaymentMethodController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
-    }
+        $paymentMethod = PaymentMethod::findOrFail($id);
 
+        $paymentMethod->update([
+            'airtel_money_number' => $request->airtel_money_number,
+            'm_pesa_number' => $request->m_pesa_number,
+            'mixx_by_yas_number' => $request->mixx_by_yas_number,
+            'halopesa_number' => $request->halopesa_number,
+            'nmb_account_number' => $request->nmb_account_number,
+            'crdb_account_number' => $request->crdb_account_number,
+            'nbc_account_number' => $request->nbc_account_number,
+        ]);
+
+        return response()->json([
+            'paymentMethod' => $paymentMethod
+        ]);
+    }
     /**
      * Remove the specified resource from storage.
      */
@@ -69,6 +86,5 @@ class PaymentMethodController extends Controller
         $paymentMethod = PaymentMethod::findOrFail($id);
         $paymentMethod->delete();
         return response()->json(['paymentMethod' => $paymentMethod]);
-
     }
 }
