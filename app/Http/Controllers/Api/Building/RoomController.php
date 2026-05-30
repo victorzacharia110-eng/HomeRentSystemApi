@@ -97,7 +97,7 @@ class RoomController extends Controller
 
         $room->update();
         return response()->json([
-            "status" => $room,
+            "room" => $room,
         ]);
     }
 
