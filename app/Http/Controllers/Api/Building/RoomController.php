@@ -76,10 +76,7 @@ class RoomController extends Controller
         $room = Room::findOrFail($id);
 
         return response()->json([
-            'id' => $room->id,
-            'room_number' => $room->room_number,
-            'type' => $room->type,
-            'status' => $room->status,
+            'room' => $room,
         ]);
     }
 
