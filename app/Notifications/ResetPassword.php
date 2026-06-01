@@ -2,17 +2,16 @@
 
 namespace App\Notifications;
 
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Support\Facades\Lang;
+use Illuminate\Notifications\Messages\MailMessage;
 
 class ResetPassword extends Notification
 {
-    public $token;
+    public $url;
 
-    public function __construct($token)
+    public function __construct($url)
     {
-        $this->token = $token;
+        $this->url = $url;
     }
 
     public function via($notifiable)
@@ -22,13 +21,11 @@ class ResetPassword extends Notification
 
     public function toMail($notifiable)
     {
-        $url = config('app.frontend_url') . '/reset-password?token=' . $this->token;
-
         return (new MailMessage)
-            ->subject(Lang::get('Reset Password Notification'))
-            ->line(Lang::get('You are receiving this email because we received a password reset request for your account.'))
-            ->action(Lang::get('Reset Password'), $url)
-            ->line(Lang::get('This password reset link will expire in :count minutes.', ['count' => config('auth.passwords.'.config('auth.defaults.passwords').'.expire')]))
-            ->line(Lang::get('If you did not request a password reset, no further action is required.'));
+            ->subject('Reset Password Notification')
+            ->line('You are receiving this email because we received a password reset request.')
+            ->action('Reset Password', $this->url)
+            ->line('This link will expire in 60 minutes.')
+            ->line('If you did not request this, ignore this email.');
     }
 }

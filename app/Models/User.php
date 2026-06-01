@@ -34,10 +34,14 @@ class User extends Authenticatable implements CanResetPassword
         ];
     }
 
-    public function sendPasswordResetNotification($token)
-    {
-        $this->notify(new \App\Notifications\ResetPassword($token));
-    }
+public function sendPasswordResetNotification($token)
+{
+    $url = config('app.frontend_url')
+        . '/reset-password?token=' . $token
+        . '&email=' . urlencode($this->email);
+
+    $this->notify(new \App\Notifications\ResetPassword($url));
+}
 
 public function room()
 {
