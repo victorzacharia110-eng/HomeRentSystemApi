@@ -34,23 +34,22 @@ class User extends Authenticatable implements CanResetPassword
         ];
     }
 
-public function sendPasswordResetNotification($token)
-{
-    $url = config('app.frontend_url')
-        . '/reset-password?token=' . $token
-        . '&email=' . urlencode($this->email);
+    public function sendPasswordResetNotification($token)
+    {
+        $url = config('app.frontend_url')
+            . '/reset-password?token=' . $token
+            . '&email=' . urlencode($this->email);
 
-    $this->notify(new \App\Notifications\ResetPassword($url));
-}
+        $this->notify(new \App\Notifications\ResetPassword($url));
+    }
 
-public function room()
-{
-    return $this->belongsTo(Room::class);
-}
+    public function room()
+    {
+        return $this->belongsTo(Room::class);
+    }
 
-public function criticalRemarks()
-{
-    return $this->hasMany(CriticalRemark::class);
-}
-
+    public function criticalRemarks()
+    {
+        return $this->hasMany(CriticalRemark::class);
+    }
 }

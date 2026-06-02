@@ -61,6 +61,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('payment/create', [PaymentController::class, 'store']);
     Route::patch('payment/update/{id}', [PaymentController::class, 'update']);
     Route::delete('payment/delete/{id}', [PaymentController::class, 'destroy']);
+    Route::get('payment/status/{paymentId}', [PaymentController::class, 'checkStatus']);
 
     // CRITICAL REMARKS
     Route::get('remarks/fetch', [CriticalRemarkController::class, 'index']);
