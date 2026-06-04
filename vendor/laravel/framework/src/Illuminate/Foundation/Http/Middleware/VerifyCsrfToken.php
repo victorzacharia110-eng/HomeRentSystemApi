@@ -39,7 +39,10 @@ class VerifyCsrfToken
      *
      * @var array<int, string>
      */
-    protected $except = [];
+protected $except = [
+    'api/payment/callback',
+    'payment/callback',
+];
 
     /**
      * The globally ignored URIs that should be excluded from CSRF verification.
