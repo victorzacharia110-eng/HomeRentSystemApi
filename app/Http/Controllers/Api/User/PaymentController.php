@@ -202,75 +202,89 @@ public function index()
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
-    {
-        $request->validate([
-            "room_id" => "required|integer|exists:rooms,id",
-            "month" => "required|integer|min:1|max:12",
-            "year" => "required|integer|min:2000",
-            "amount" => "required|numeric|min:0",
-            "due_date" => "required|date",
-        ]);
+public function store(Request $request)
+{
+    \Log::info('=== STORE METHOD STARTED ===');
+    
+    $request->validate([
+        "room_id" => "required|integer|exists:rooms,id",
+        "month" => "required|integer|min:1|max:12",
+        "year" => "required|integer|min:2000",
+        "amount" => "required|numeric|min:0",
+        "due_date" => "required|date",
+    ]);
 
-        $user = auth()->user();
+    \Log::info('Validation passed');
 
-        // ✅ Check if user has phone number
-        if (!$user->phone_number) {
-            return response()->json([
-                'error' => 'Phone number required',
-                'message' => 'Please update your profile with a valid phone number before making a payment.'
-            ], 400);
-        }
+    $user = auth()->user();
+    \Log::info('User ID: ' . $user->id);
+    \Log::info('User phone: ' . ($user->phone_number ?? 'MISSING'));
 
-        // ✅ Check if there's already a pending payment for this room/month/year
-        $existingPending = Payment::where('room_id', $request->room_id)
-            ->where('month', $request->month)
-            ->where('year', $request->year)
-            ->where('status', 'pending')
-            ->first();
+    // Check if user has phone number
+    if (!$user->phone_number) {
+        \Log::error('Phone number missing for user: ' . $user->id);
+        return response()->json([
+            'error' => 'Phone number required',
+            'message' => 'Please update your profile with a valid phone number before making a payment.'
+        ], 400);
+    }
 
-        if ($existingPending) {
-            return response()->json([
-                'error' => 'Pending payment exists',
-                'message' => 'You already have a pending payment for this period. Please wait for it to complete or contact support.',
-                'payment_id' => $existingPending->id
-            ], 409);
-        }
+    // Check for existing pending payment
+    $existingPending = Payment::where('room_id', $request->room_id)
+        ->where('month', $request->month)
+        ->where('year', $request->year)
+        ->where('status', 'pending')
+        ->first();
 
-        // Create payment record
-        $payment = new Payment();
-        $payment->user_id = $user->id;
-        $payment->room_id = $request->room_id;
-        $payment->amount = $request->amount;
-        $payment->month = $request->month;
-        $payment->year = $request->year;
-        $payment->due_date = $request->due_date;
-        $payment->status = 'pending';  // Always start as pending
+    if ($existingPending) {
+        \Log::warning('Pending payment exists: ' . $existingPending->id);
+        return response()->json([
+            'error' => 'Pending payment exists',
+            'message' => 'You already have a pending payment for this period. Please wait for it to complete or contact support.',
+            'payment_id' => $existingPending->id
+        ], 409);
+    }
+
+    // Create payment record
+    $payment = new Payment();
+    $payment->user_id = $user->id;
+    $payment->room_id = $request->room_id;
+    $payment->amount = $request->amount;
+    $payment->month = $request->month;
+    $payment->year = $request->year;
+    $payment->due_date = $request->due_date;
+    $payment->status = 'pending';
+    $payment->save();
+
+    \Log::info('Payment created with ID: ' . $payment->id);
+    \Log::info('About to call initiateClickPesaPayment...');
+
+    try {
+        // Initiate ClickPesa payment
+        $gatewayResponse = $this->initiateClickPesaPayment($payment);
+        \Log::info('ClickPesa call successful!');
+
+        return response()->json([
+            'success' => true,
+            'payment' => $payment,
+            'gateway_response' => $gatewayResponse,
+            'message' => 'Payment initiated! Check your phone for the USSD prompt from ClickPesa.'
+        ], 201);
+
+    } catch (\Exception $e) {
+        \Log::error('ClickPesa call FAILED: ' . $e->getMessage());
+        \Log::error('Stack trace: ' . $e->getTraceAsString());
+        
+        $payment->status = 'failed';
         $payment->save();
 
-        try {
-            // Initiate ClickPesa payment
-            $gatewayResponse = $this->initiateClickPesaPayment($payment);
-
-            return response()->json([
-                'success' => true,
-                'payment' => $payment,
-                'gateway_response' => $gatewayResponse,
-                'message' => 'Payment initiated! Check your phone for the USSD prompt from ClickPesa.'
-            ], 201);
-
-        } catch (\Exception $e) {
-            // If ClickPesa fails, mark payment as failed
-            $payment->status = 'failed';
-            $payment->save();
-
-            return response()->json([
-                'success' => false,
-                'error' => 'Payment initiation failed',
-                'message' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => false,
+            'error' => 'Payment initiation failed',
+            'message' => $e->getMessage()
+        ], 500);
     }
+}
 
     /**
      * Display the specified resource.
