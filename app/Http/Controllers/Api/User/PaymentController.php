@@ -105,6 +105,33 @@ class PaymentController extends Controller
     }
 
     /**
+     * GET CLICKPESA JWT TOKEN
+     * Exchange API Key and Client ID for a JWT token
+     */
+    private function getClickPesaToken()
+    {
+        $apiKey = env('CLICKPESA_API_KEY');
+        $clientId = env('CLICKPESA_CLIENT_ID');
+
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Getting JWT token...\n", FILE_APPEND);
+
+        $response = Http::post('https://api.clickpesa.com/v1/auth/token', [
+            'clientId' => $clientId,
+            'apiKey' => $apiKey,
+        ]);
+
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Token Response Status: " . $response->status() . "\n", FILE_APPEND);
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Token Response Body: " . $response->body() . "\n", FILE_APPEND);
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to get ClickPesa token: ' . $response->body());
+        }
+
+        $data = $response->json();
+        return $data['access_token'];
+    }
+
+    /**
      * INITIATE CLICKPESA PAYMENT
      * This sends the payment request to ClickPesa
      */
@@ -138,13 +165,15 @@ class PaymentController extends Controller
             $phoneNumber = substr($phoneNumber, 1);
         }
 
-        $apiKey = env('CLICKPESA_API_KEY');
-        $clientId = env('CLICKPESA_CLIENT_ID');
         $baseUrl = env('CLICKPESA_BASE_URL', 'https://api.clickpesa.com');
+
+        // Get JWT token first
+        $token = $this->getClickPesaToken();
 
         // Debug logging
         file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " === Starting ClickPesa Payment ===\n", FILE_APPEND);
         file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Payment ID: {$payment->id}, Amount: {$payment->amount}, Phone: {$phoneNumber}\n", FILE_APPEND);
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " JWT Token obtained (first 50 chars): " . substr($token, 0, 50) . "...\n", FILE_APPEND);
 
         // ✅ STEP 1: PREVIEW/VALIDATE (Optional but recommended)
         try {
@@ -159,8 +188,7 @@ class PaymentController extends Controller
 
             $previewResponse = Http::timeout(30)
                 ->withHeaders([
-                    'Authorization' => 'Bearer ' . $apiKey,
-                    'Client-Id' => $clientId,
+                    'Authorization' => 'Bearer ' . $token,
                     'Content-Type' => 'application/json',
                     'Accept' => 'application/json',
                 ])
@@ -198,8 +226,7 @@ class PaymentController extends Controller
         try {
             $response = Http::timeout(30)
                 ->withHeaders([
-                    'Authorization' => 'Bearer ' . $apiKey,
-                    'Client-Id' => $clientId,
+                    'Authorization' => 'Bearer ' . $token,
                     'Content-Type' => 'application/json',
                     'Accept' => 'application/json',
                 ])
