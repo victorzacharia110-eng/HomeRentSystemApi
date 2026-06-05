@@ -13,44 +13,44 @@ class PaymentController extends Controller
     /**
      * Display a listing of the resource.
      */
-public function index()
-{
-    $user = auth()->user();
+    public function index()
+    {
+        $user = auth()->user();
 
-    if ($user->is_landlord === 0) {
-        // Get current month and year
-        $currentMonth = now()->month;
-        $currentYear = now()->year;
-        
-        // Get payment for current month (or latest if no current month)
-        $tenant_payment = Payment::with("room")
-            ->where('room_id', '=', $user->room_id)
-            ->where('month', $currentMonth)
-            ->where('year', $currentYear)
-            ->first();
-        
-        // If no payment for current month, get the latest
-        if (!$tenant_payment) {
+        if ($user->is_landlord === 0) {
+            // Get current month and year
+            $currentMonth = now()->month;
+            $currentYear = now()->year;
+
+            // Get payment for current month (or latest if no current month)
             $tenant_payment = Payment::with("room")
                 ->where('room_id', '=', $user->room_id)
-                ->orderBy("id", "desc")
+                ->where('month', $currentMonth)
+                ->where('year', $currentYear)
                 ->first();
+
+            // If no payment for current month, get the latest
+            if (!$tenant_payment) {
+                $tenant_payment = Payment::with("room")
+                    ->where('room_id', '=', $user->room_id)
+                    ->orderBy("id", "desc")
+                    ->first();
+            }
+
+            $count_tenant_unpaid_payment = Payment::with("room")
+                ->where("room_id", "=", $user->room_id)
+                ->where("status", "=", 'unpaid')
+                ->count();
+
+            return response()->json([
+                'tenant_payment' => $tenant_payment,
+                'count_tenant_unpaid_payment' => $count_tenant_unpaid_payment
+            ]);
+        } else {
+            $payments = Payment::with("room")->orderBy("id", "desc")->get();
+            return response()->json(['payments' => $payments]);
         }
-        
-        $count_tenant_unpaid_payment = Payment::with("room")
-            ->where("room_id", "=", $user->room_id)
-            ->where("status", "=", 'unpaid')
-            ->count();
-            
-        return response()->json([
-            'tenant_payment' => $tenant_payment, 
-            'count_tenant_unpaid_payment' => $count_tenant_unpaid_payment
-        ]);
-    } else {
-        $payments = Payment::with("room")->orderBy("id", "desc")->get();
-        return response()->json(['payments' => $payments]);
     }
-}
 
     /**
      * CLICKPESA WEBHOOK CALLBACK
@@ -84,7 +84,7 @@ public function index()
 
         // Update payment status based on callback
         $successStatuses = ['success', 'successful', 'paid', 'completed', 'complete'];
-        
+
         if (in_array($status, $successStatuses)) {
             $payment->status = 'paid';
             $payment->paid_at = now();
@@ -110,18 +110,23 @@ public function index()
      */
     private function initiateClickPesaPayment($payment)
     {
-        $user = auth()->user();
+        // ✅ FIXED: Use payment's user instead of auth()->user()
+        $user = $payment->user;
         
+        if (!$user) {
+            throw new \Exception('No user associated with this payment.');
+        }
+
         // ✅ CRITICAL: Get user's phone number
         $phoneNumber = $user->phone_number;
-        
+
         if (!$phoneNumber) {
             throw new \Exception('User has no phone number. Please update your profile with a valid phone number.');
         }
 
         // Clean phone number (remove spaces, ensure correct format)
         $phoneNumber = preg_replace('/[^0-9]/', '', $phoneNumber);
-        
+
         // ClickPesa expects phone number in format: 255XXXXXXXXX (without leading 0 or +)
         if (substr($phoneNumber, 0, 1) === '0') {
             $phoneNumber = '255' . substr($phoneNumber, 1);
@@ -135,6 +140,9 @@ public function index()
         $clientId = env('CLICKPESA_CLIENT_ID');
         $baseUrl = env('CLICKPESA_BASE_URL', 'https://api.clickpesa.com');
 
+        // Load room relationship for description
+        $payment->load('room');
+
         // ✅ Complete payload for USSD payment
         $payload = [
             'amount' => (float) $payment->amount,
@@ -144,7 +152,7 @@ public function index()
             'customer_email' => $user->email,
             'customer_phone' => $phoneNumber,
             'callback_url' => env('CLICKPESA_CALLBACK_URL'),
-            'redirect_url' => env('FRONTEND_URL') . '/payment-status', // Where to redirect after payment
+            'redirect_url' => env('FRONTEND_URL') . '/payment-status',
             'description' => "Rent payment for month {$payment->month}/{$payment->year} - Room #" . ($payment->room->room_number ?? 'N/A'),
             'metadata' => [
                 'payment_id' => $payment->id,
@@ -154,6 +162,10 @@ public function index()
                 'year' => $payment->year
             ]
         ];
+
+        // ✅ File-based debug logging (since cloud logs are hard to access)
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - Payment ID: {$payment->id} - Calling ClickPesa API\n", FILE_APPEND);
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - Phone: {$phoneNumber}, Amount: {$payment->amount}\n", FILE_APPEND);
 
         Log::info('ClickPesa Initiate Payload:', $payload);
 
@@ -168,6 +180,9 @@ public function index()
                 ])
                 ->post($baseUrl . '/v1/payments/ussd', $payload);
 
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - Response Status: " . $response->status() . "\n", FILE_APPEND);
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - Response Body: " . $response->body() . "\n", FILE_APPEND);
+
             Log::info('ClickPesa Response:', [
                 'status' => $response->status(),
                 'body' => $response->json(),
@@ -181,19 +196,22 @@ public function index()
             }
 
             $responseData = $response->json();
-            
+
             // Store transaction ID if returned
             if (isset($responseData['transaction_id'])) {
                 $payment->clickpesa_transaction_id = $responseData['transaction_id'];
                 $payment->save();
+                file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - Transaction ID saved: {$responseData['transaction_id']}\n", FILE_APPEND);
             }
 
             return $responseData;
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - Connection Error: " . $e->getMessage() . "\n", FILE_APPEND);
             Log::error('ClickPesa Connection Error:', ['error' => $e->getMessage()]);
             throw new \Exception('Could not connect to payment gateway. Please try again.');
         } catch (\Exception $e) {
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - General Error: " . $e->getMessage() . "\n", FILE_APPEND);
             Log::error('ClickPesa General Error:', ['error' => $e->getMessage()]);
             throw $e;
         }
@@ -202,89 +220,86 @@ public function index()
     /**
      * Store a newly created resource in storage.
      */
-public function store(Request $request)
-{
-    \Log::info('=== STORE METHOD STARTED ===');
-    
-    $request->validate([
-        "room_id" => "required|integer|exists:rooms,id",
-        "month" => "required|integer|min:1|max:12",
-        "year" => "required|integer|min:2000",
-        "amount" => "required|numeric|min:0",
-        "due_date" => "required|date",
-    ]);
-
-    \Log::info('Validation passed');
-
-    $user = auth()->user();
-    \Log::info('User ID: ' . $user->id);
-    \Log::info('User phone: ' . ($user->phone_number ?? 'MISSING'));
-
-    // Check if user has phone number
-    if (!$user->phone_number) {
-        \Log::error('Phone number missing for user: ' . $user->id);
-        return response()->json([
-            'error' => 'Phone number required',
-            'message' => 'Please update your profile with a valid phone number before making a payment.'
-        ], 400);
-    }
-
-    // Check for existing pending payment
-    $existingPending = Payment::where('room_id', $request->room_id)
-        ->where('month', $request->month)
-        ->where('year', $request->year)
-        ->where('status', 'pending')
-        ->first();
-
-    if ($existingPending) {
-        \Log::warning('Pending payment exists: ' . $existingPending->id);
-        return response()->json([
-            'error' => 'Pending payment exists',
-            'message' => 'You already have a pending payment for this period. Please wait for it to complete or contact support.',
-            'payment_id' => $existingPending->id
-        ], 409);
-    }
-
-    // Create payment record
-    $payment = new Payment();
-    $payment->user_id = $user->id;
-    $payment->room_id = $request->room_id;
-    $payment->amount = $request->amount;
-    $payment->month = $request->month;
-    $payment->year = $request->year;
-    $payment->due_date = $request->due_date;
-    $payment->status = 'pending';
-    $payment->save();
-
-    \Log::info('Payment created with ID: ' . $payment->id);
-    \Log::info('About to call initiateClickPesaPayment...');
-
-    try {
-        // Initiate ClickPesa payment
-        $gatewayResponse = $this->initiateClickPesaPayment($payment);
-        \Log::info('ClickPesa call successful!');
-
-        return response()->json([
-            'success' => true,
-            'payment' => $payment,
-            'gateway_response' => $gatewayResponse,
-            'message' => 'Payment initiated! Check your phone for the USSD prompt from ClickPesa.'
-        ], 201);
-
-    } catch (\Exception $e) {
-        \Log::error('ClickPesa call FAILED: ' . $e->getMessage());
-        \Log::error('Stack trace: ' . $e->getTraceAsString());
+    public function store(Request $request)
+    {
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " === STORE METHOD STARTED ===\n", FILE_APPEND);
         
-        $payment->status = 'failed';
+        $request->validate([
+            "room_id" => "required|integer|exists:rooms,id",
+            "month" => "required|integer|min:1|max:12",
+            "year" => "required|integer|min:2000",
+            "amount" => "required|numeric|min:0",
+            "due_date" => "required|date",
+        ]);
+
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Validation passed\n", FILE_APPEND);
+
+        $user = auth()->user();
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " User ID: {$user->id}, Phone: " . ($user->phone_number ?? 'MISSING') . "\n", FILE_APPEND);
+
+        // Check if user has phone number
+        if (!$user->phone_number) {
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " ERROR: Phone number missing\n", FILE_APPEND);
+            return response()->json([
+                'error' => 'Phone number required',
+                'message' => 'Please update your profile with a valid phone number before making a payment.'
+            ], 400);
+        }
+
+        // Check for existing pending payment
+        $existingPending = Payment::where('room_id', $request->room_id)
+            ->where('month', $request->month)
+            ->where('year', $request->year)
+            ->where('status', 'pending')
+            ->first();
+
+        if ($existingPending) {
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Pending payment exists: {$existingPending->id}\n", FILE_APPEND);
+            return response()->json([
+                'error' => 'Pending payment exists',
+                'message' => 'You already have a pending payment for this period. Please wait for it to complete or contact support.',
+                'payment_id' => $existingPending->id
+            ], 409);
+        }
+
+        // Create payment record
+        $payment = new Payment();
+        $payment->user_id = $user->id;
+        $payment->room_id = $request->room_id;
+        $payment->amount = $request->amount;
+        $payment->month = $request->month;
+        $payment->year = $request->year;
+        $payment->due_date = $request->due_date;
+        $payment->status = 'pending';
         $payment->save();
 
-        return response()->json([
-            'success' => false,
-            'error' => 'Payment initiation failed',
-            'message' => $e->getMessage()
-        ], 500);
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Payment created with ID: {$payment->id}\n", FILE_APPEND);
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " About to call initiateClickPesaPayment...\n", FILE_APPEND);
+
+        try {
+            // Initiate ClickPesa payment
+            $gatewayResponse = $this->initiateClickPesaPayment($payment);
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " ClickPesa call SUCCESSFUL!\n", FILE_APPEND);
+
+            return response()->json([
+                'success' => true,
+                'payment' => $payment,
+                'gateway_response' => $gatewayResponse,
+                'message' => 'Payment initiated! Check your phone for the USSD prompt from ClickPesa.'
+            ], 201);
+        } catch (\Exception $e) {
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " ClickPesa call FAILED: " . $e->getMessage() . "\n", FILE_APPEND);
+            
+            $payment->status = 'failed';
+            $payment->save();
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Payment initiation failed',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
-}
 
     /**
      * Display the specified resource.
@@ -292,11 +307,11 @@ public function store(Request $request)
     public function show(string $id)
     {
         $payment = Payment::with('room')->find($id);
-        
+
         if (!$payment) {
             return response()->json(['error' => 'Payment not found'], 404);
         }
-        
+
         return response()->json(['payment' => $payment]);
     }
 
@@ -326,7 +341,7 @@ public function store(Request $request)
     public function checkStatus(string $paymentId)
     {
         $payment = Payment::find($paymentId);
-        
+
         if (!$payment) {
             return response()->json(['error' => 'Payment not found'], 404);
         }
