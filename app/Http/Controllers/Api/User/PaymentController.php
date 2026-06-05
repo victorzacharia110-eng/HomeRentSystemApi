@@ -108,28 +108,65 @@ class PaymentController extends Controller
      * GET CLICKPESA JWT TOKEN
      * Exchange API Key and Client ID for a JWT token
      */
-    private function getClickPesaToken()
-    {
-        $apiKey = env('CLICKPESA_API_KEY');
-        $clientId = env('CLICKPESA_CLIENT_ID');
-
-        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Getting JWT token...\n", FILE_APPEND);
-
-        $response = Http::post('https://api.clickpesa.com/v1/auth/token', [
-            'clientId' => $clientId,
-            'apiKey' => $apiKey,
-        ]);
-
+private function getClickPesaToken()
+{
+    $apiKey = env('CLICKPESA_API_KEY');
+    $clientId = env('CLICKPESA_CLIENT_ID');
+    $baseUrl = env('CLICKPESA_BASE_URL', 'https://api.clickpesa.com');
+    
+    file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Getting JWT token...\n", FILE_APPEND);
+    file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Client ID: {$clientId}\n", FILE_APPEND);
+    
+    try {
+        // According to ClickPesa documentation, the token endpoint is /v1/auth/token
+        // And it requires Basic Authentication with Client ID as username and API Key as password
+        $credentials = base64_encode("{$clientId}:{$apiKey}");
+        
+        $response = Http::timeout(30)
+            ->withHeaders([
+                'Authorization' => 'Basic ' . $credentials,
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+            ])
+            ->post($baseUrl . '/v1/auth/token', [
+                'grant_type' => 'client_credentials',
+            ]);
+        
         file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Token Response Status: " . $response->status() . "\n", FILE_APPEND);
         file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Token Response Body: " . $response->body() . "\n", FILE_APPEND);
-
+        
         if (!$response->successful()) {
-            throw new \Exception('Failed to get ClickPesa token: ' . $response->body());
+            throw new \Exception('Token request failed with status: ' . $response->status());
         }
-
+        
         $data = $response->json();
-        return $data['access_token'];
+        
+        // The token can be in different response fields
+        if (isset($data['access_token'])) {
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Token obtained successfully\n", FILE_APPEND);
+            return $data['access_token'];
+        }
+        
+        if (isset($data['token'])) {
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Token obtained successfully\n", FILE_APPEND);
+            return $data['token'];
+        }
+        
+        if (isset($data['data']['access_token'])) {
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Token obtained successfully\n", FILE_APPEND);
+            return $data['data']['access_token'];
+        }
+        
+        throw new \Exception('No token found in response: ' . json_encode($data));
+        
+    } catch (\Illuminate\Http\Client\ConnectionException $e) {
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Connection Error: " . $e->getMessage() . "\n", FILE_APPEND);
+        throw new \Exception('Could not connect to ClickPesa token endpoint');
+    } catch (\Exception $e) {
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Token Error: " . $e->getMessage() . "\n", FILE_APPEND);
+        throw $e;
     }
+}
 
     /**
      * INITIATE CLICKPESA PAYMENT
