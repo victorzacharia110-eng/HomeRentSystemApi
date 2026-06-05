@@ -110,14 +110,16 @@ class PaymentController extends Controller
      */
     private function initiateClickPesaPayment($payment)
     {
-        // ✅ FIXED: Use payment's user instead of auth()->user()
+        // Load relationships
+        $payment->load('user', 'room');
+
         $user = $payment->user;
-        
+
         if (!$user) {
             throw new \Exception('No user associated with this payment.');
         }
 
-        // ✅ CRITICAL: Get user's phone number
+        // Get user's phone number
         $phoneNumber = $user->phone_number;
 
         if (!$phoneNumber) {
@@ -140,54 +142,71 @@ class PaymentController extends Controller
         $clientId = env('CLICKPESA_CLIENT_ID');
         $baseUrl = env('CLICKPESA_BASE_URL', 'https://api.clickpesa.com');
 
-        // Load room relationship for description
-        $payment->load('room');
+        // Debug logging
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " === Starting ClickPesa Payment ===\n", FILE_APPEND);
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Payment ID: {$payment->id}, Amount: {$payment->amount}, Phone: {$phoneNumber}\n", FILE_APPEND);
 
-        // ✅ Complete payload for USSD payment
+        // ✅ STEP 1: PREVIEW/VALIDATE (Optional but recommended)
+        try {
+            $previewPayload = [
+                'amount' => (string) $payment->amount,
+                'currency' => 'TZS',
+                'orderReference' => (string) $payment->id,
+                'phoneNumber' => $phoneNumber,
+            ];
+
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Step 1 - Preview Payload: " . json_encode($previewPayload) . "\n", FILE_APPEND);
+
+            $previewResponse = Http::timeout(30)
+                ->withHeaders([
+                    'Authorization' => 'Bearer ' . $apiKey,
+                    'Client-Id' => $clientId,
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                ])
+                ->post($baseUrl . '/third-parties/payments/preview-ussd-push-request', $previewPayload);
+
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Preview Response Status: " . $previewResponse->status() . "\n", FILE_APPEND);
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Preview Response Body: " . $previewResponse->body() . "\n", FILE_APPEND);
+
+            if (!$previewResponse->successful()) {
+                file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Preview failed but continuing...\n", FILE_APPEND);
+            }
+        } catch (\Exception $e) {
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Preview Exception: " . $e->getMessage() . "\n", FILE_APPEND);
+            // Continue anyway - preview is optional
+        }
+
+        // ✅ STEP 2: INITIATE ACTUAL USSD PAYMENT
         $payload = [
-            'amount' => (float) $payment->amount,
+            'amount' => (string) $payment->amount,
             'currency' => 'TZS',
-            'reference' => (string) $payment->id,
-            'customer_name' => $user->last_name ?? $user->name ?? 'Customer',
-            'customer_email' => $user->email,
-            'customer_phone' => $phoneNumber,
-            'callback_url' => env('CLICKPESA_CALLBACK_URL'),
-            'redirect_url' => env('FRONTEND_URL') . '/payment-status',
-            'description' => "Rent payment for month {$payment->month}/{$payment->year} - Room #" . ($payment->room->room_number ?? 'N/A'),
-            'metadata' => [
-                'payment_id' => $payment->id,
-                'user_id' => $user->id,
-                'room_id' => $payment->room_id,
-                'month' => $payment->month,
-                'year' => $payment->year
-            ]
+            'orderReference' => (string) $payment->id,
+            'phoneNumber' => $phoneNumber,
         ];
 
-        // ✅ File-based debug logging (since cloud logs are hard to access)
-        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - Payment ID: {$payment->id} - Calling ClickPesa API\n", FILE_APPEND);
-        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - Phone: {$phoneNumber}, Amount: {$payment->amount}\n", FILE_APPEND);
+        // Add optional fields if you have them
+        if ($user->email) {
+            $payload['email'] = $user->email;
+        }
+        if ($user->last_name) {
+            $payload['customerName'] = $user->last_name;
+        }
 
-        Log::info('ClickPesa Initiate Payload:', $payload);
+        file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Step 2 - Initiate Payload: " . json_encode($payload) . "\n", FILE_APPEND);
 
         try {
-            // ✅ Use the correct USSD endpoint
             $response = Http::timeout(30)
                 ->withHeaders([
-                    'Authorization' => "Bearer {$apiKey}",
+                    'Authorization' => 'Bearer ' . $apiKey,
                     'Client-Id' => $clientId,
-                    'Accept' => 'application/json',
                     'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
                 ])
-                ->post($baseUrl . '/v1/payments/ussd', $payload);
+                ->post($baseUrl . '/third-parties/payments/initiate-ussd-push-request', $payload);
 
-            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - Response Status: " . $response->status() . "\n", FILE_APPEND);
-            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - Response Body: " . $response->body() . "\n", FILE_APPEND);
-
-            Log::info('ClickPesa Response:', [
-                'status' => $response->status(),
-                'body' => $response->json(),
-                'raw' => $response->body()
-            ]);
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Initiate Response Status: " . $response->status() . "\n", FILE_APPEND);
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Initiate Response Body: " . $response->body() . "\n", FILE_APPEND);
 
             if (!$response->successful()) {
                 $errorBody = $response->json();
@@ -198,20 +217,25 @@ class PaymentController extends Controller
             $responseData = $response->json();
 
             // Store transaction ID if returned
-            if (isset($responseData['transaction_id'])) {
-                $payment->clickpesa_transaction_id = $responseData['transaction_id'];
+            if (isset($responseData['id'])) {
+                $payment->clickpesa_transaction_id = $responseData['id'];
                 $payment->save();
-                file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - Transaction ID saved: {$responseData['transaction_id']}\n", FILE_APPEND);
+                file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Transaction ID saved: {$responseData['id']}\n", FILE_APPEND);
             }
 
-            return $responseData;
+            // Store the full response
+            $payment->clickpesa_response = json_encode($responseData);
+            $payment->save();
 
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " === Payment Initiated Successfully ===\n", FILE_APPEND);
+
+            return $responseData;
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - Connection Error: " . $e->getMessage() . "\n", FILE_APPEND);
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Connection Error: " . $e->getMessage() . "\n", FILE_APPEND);
             Log::error('ClickPesa Connection Error:', ['error' => $e->getMessage()]);
             throw new \Exception('Could not connect to payment gateway. Please try again.');
         } catch (\Exception $e) {
-            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " - General Error: " . $e->getMessage() . "\n", FILE_APPEND);
+            file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " General Error: " . $e->getMessage() . "\n", FILE_APPEND);
             Log::error('ClickPesa General Error:', ['error' => $e->getMessage()]);
             throw $e;
         }
@@ -223,7 +247,7 @@ class PaymentController extends Controller
     public function store(Request $request)
     {
         file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " === STORE METHOD STARTED ===\n", FILE_APPEND);
-        
+
         $request->validate([
             "room_id" => "required|integer|exists:rooms,id",
             "month" => "required|integer|min:1|max:12",
@@ -289,7 +313,7 @@ class PaymentController extends Controller
             ], 201);
         } catch (\Exception $e) {
             file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " ClickPesa call FAILED: " . $e->getMessage() . "\n", FILE_APPEND);
-            
+
             $payment->status = 'failed';
             $payment->save();
 
