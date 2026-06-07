@@ -47,7 +47,17 @@ class AnnouncementController extends Controller
      */
     public function show(string $id)
     {
-        return Announcement::findOrFail($id);
+        $announcement = Announcement::findOrFail($id);
+
+        if (!$announcement) {
+            return response()->json(['message' => 'Announcement not found'], 404);
+        }
+
+        return response()->json([
+            'announcement' => $announcement
+        ]);
+
+    
     }
 
     /**

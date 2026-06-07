@@ -112,33 +112,33 @@ class PaymentController extends Controller
     {
         $apiKey = env('CLICKPESA_API_KEY');
         $clientId = env('CLICKPESA_CLIENT_ID');
-        
+
         file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Getting JWT token...\n", FILE_APPEND);
-        
+
         $response = Http::withHeaders([
             'client-id' => $clientId,
             'api-key' => $apiKey,
             'Content-Type' => 'application/json',
         ])->post('https://api.clickpesa.com/third-parties/generate-token');
-        
+
         file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Token Response Status: " . $response->status() . "\n", FILE_APPEND);
         file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Token Response Body: " . $response->body() . "\n", FILE_APPEND);
-        
+
         if (!$response->successful()) {
             throw new \Exception('Failed to get ClickPesa token: ' . $response->body());
         }
-        
+
         $data = $response->json();
-        
+
         if (!isset($data['token'])) {
             throw new \Exception('No token in response: ' . json_encode($data));
         }
-        
+
         // Remove "Bearer " prefix if present
         $token = str_replace('Bearer ', '', $data['token']);
-        
+
         file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Token obtained successfully\n", FILE_APPEND);
-        
+
         return $token;
     }
 
@@ -266,12 +266,10 @@ class PaymentController extends Controller
             file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " === Payment Initiated Successfully ===\n", FILE_APPEND);
 
             return $responseData;
-
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " Connection Error: " . $e->getMessage() . "\n", FILE_APPEND);
             Log::error('ClickPesa Connection Error:', ['error' => $e->getMessage()]);
             throw new \Exception('Could not connect to payment gateway. Please try again.');
-            
         } catch (\Exception $e) {
             file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " General Error: " . $e->getMessage() . "\n", FILE_APPEND);
             Log::error('ClickPesa General Error:', ['error' => $e->getMessage()]);
@@ -349,7 +347,6 @@ class PaymentController extends Controller
                 'gateway_response' => $gatewayResponse,
                 'message' => 'Payment initiated! Check your phone for the USSD prompt from ClickPesa.'
             ], 201);
-            
         } catch (\Exception $e) {
             file_put_contents('/tmp/clickpesa_debug.log', date('Y-m-d H:i:s') . " ClickPesa call FAILED: " . $e->getMessage() . "\n", FILE_APPEND);
 
