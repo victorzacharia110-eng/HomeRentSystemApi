@@ -74,7 +74,9 @@ class AnnouncementController extends Controller
 
         $announcement->update($request->only(['title', 'message']));
 
-        return response()->json($announcement);
+        return response()->json([
+            'announcement' => $announcement
+        ]);
     }
 
     /**
