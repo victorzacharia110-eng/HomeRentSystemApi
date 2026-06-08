@@ -10,22 +10,26 @@ class CriticalRemarkController extends Controller
 {
     /**
      * Display a listing of the resource.
+     * Landlord sees ALL remarks (for all tenants)
+     * Tenant sees ONLY remarks about themselves
      */
     public function index()
     {
         $user = auth()->user();
-
+        
         if ($user->is_landlord === 1) {
+            // Landlord sees ALL remarks with tenant info
             $criticalRemarks = CriticalRemark::with('user')
                 ->latest()
                 ->get();
         } else {
+            // Tenant sees ONLY remarks where user_id matches their ID
             $criticalRemarks = CriticalRemark::with('user')
                 ->where('user_id', $user->id)
                 ->latest()
                 ->get();
         }
-
+        
         return response()->json([
             'criticalRemarks' => $criticalRemarks
         ]);
@@ -37,22 +41,22 @@ class CriticalRemarkController extends Controller
     public function store(Request $request)
     {
         $request->validate([
+            'user_id' => 'required|exists:users,id',  //  The TENANT this remark is for
             'reason' => 'required|string',
             'type' => 'required|string',
             'active' => 'required|boolean',
         ]);
-
+        
         $criticalRemark = new CriticalRemark();
-        $criticalRemark->user_id = auth()->id(); // ✅ FIXED
+        $criticalRemark->user_id = $request->user_id;  //   Assign to TENANT, 
         $criticalRemark->reason_text = $request->reason;
         $criticalRemark->type = $request->type;
         $criticalRemark->active = $request->active;
-
         $criticalRemark->save();
-
-        // ✅ load user so Vue can access last_name
+        
+        // Load user so frontend can access tenant name
         $criticalRemark->load('user');
-
+        
         return response()->json([
             'criticalRemark' => $criticalRemark
         ]);
@@ -63,10 +67,18 @@ class CriticalRemarkController extends Controller
      */
     public function show(string $id)
     {
+        $user = auth()->user();
+        
         $remark = CriticalRemark::with('user')
-            ->where('user_id', auth()->id())
-            ->first();
-
+            ->where('id', $id);
+        
+        // Security: Tenant can only see their own remarks
+        if ($user->is_landlord !== 1) {
+            $remark->where('user_id', $user->id);
+        }
+        
+        $remark = $remark->firstOrFail();
+        
         return response()->json([
             'criticalRemark' => $remark
         ]);
@@ -78,21 +90,21 @@ class CriticalRemarkController extends Controller
     public function update(Request $request, string $id)
     {
         $remark = CriticalRemark::findOrFail($id);
-
+        
         $request->validate([
             'reason_text' => 'nullable|string',
             'type' => 'nullable|string',
             'active' => 'nullable|boolean',
         ]);
-
+        
         $remark->update($request->only([
             'reason_text',
             'type',
             'active'
         ]));
-
+        
         $remark->load('user');
-
+        
         return response()->json([
             'criticalRemark' => $remark
         ]);
@@ -105,7 +117,7 @@ class CriticalRemarkController extends Controller
     {
         $remark = CriticalRemark::findOrFail($id);
         $remark->delete();
-
+        
         return response()->json([
             'message' => 'Deleted successfully'
         ]);
