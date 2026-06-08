@@ -65,9 +65,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // CRITICAL REMARKS
     Route::get('remarks/fetch', [CriticalRemarkController::class, 'index']);
+    Route::get('remarks/show/{id}', [CriticalRemarkController::class, 'show']);
     Route::post('remarks/create', [CriticalRemarkController::class, 'store']);
     Route::patch('remarks/update/{id}', [CriticalRemarkController::class, 'update']);
     Route::delete('remarks/delete/{id}', [CriticalRemarkController::class, 'destroy']);
+
 
     // PAYMENT METHODS
     Route::get('method/fetch', [PaymentMethodController::class, 'index']);
