@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class CriticalRemark extends Model
 {
     protected $table = "critical_remarks";
-    protected $fillable = ['user_id', 'reason', 'type', 'active'];
+    protected $fillable = ['user_id', 'reason_text', 'type', 'active'];
 
     public function user()
     {
