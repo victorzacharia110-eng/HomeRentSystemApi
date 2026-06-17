@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\Building\RoomController;
 use App\Http\Controllers\Api\Building\RuleController;
+use App\Http\Controllers\Api\Entertainment\Football\FootballController;
 use App\Http\Controllers\Api\User\AnnouncementController;
 use App\Http\Controllers\Api\User\AuthController as UserAuthController;
 use App\Http\Controllers\Api\User\CommentController;
@@ -98,4 +99,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('comments/create', [CommentController::class, 'store']);
     Route::patch('comments/update/{id}', [CommentController::class, 'update']);
     Route::delete('comments/delete/{id}', [CommentController::class, 'destroy']);
+
+        // FOOTBALL
+    Route::prefix('football')->group(function () {
+        Route::get('/live', [FootballController::class, 'live']);
+        Route::get('/fixtures', [FootballController::class, 'fixtures']);
+        Route::get('/standings', [FootballController::class, 'standings']);
+        Route::get('/match/{fixtureId}', [FootballController::class, 'match']);
+        Route::get('/team/{teamId}', [FootballController::class, 'team']);
+        Route::get('/scorers', [FootballController::class, 'scorers']);
+    });
 });
