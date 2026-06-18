@@ -26,27 +26,36 @@ class SportMonksService
      */
     public function getAvailableLeagues()
     {
-        $cacheKey = "sportmonks_available_leagues";
-
-        return Cache::remember($cacheKey, now()->addDay(), function () {
-            $response = Http::timeout(30)->get(
-                "{$this->baseUrl}/leagues",
-                [
-                    'api_token' => $this->token,
-                    'include' => 'season'
-                ]
-            );
-            
-            if ($response->failed()) {
-                Log::error('SportMonks Leagues Error', [
-                    'status' => $response->status(),
-                    'body' => $response->body()
-                ]);
-                return ['data' => [], 'error' => 'API request failed'];
+        try {
+            if (empty($this->token)) {
+                return ['data' => [], 'error' => 'API token is not configured'];
             }
 
-            return $response->json();
-        });
+            $cacheKey = "sportmonks_available_leagues";
+
+            return Cache::remember($cacheKey, now()->addHours(6), function () {
+                $response = Http::timeout(30)->get(
+                    "{$this->baseUrl}/leagues",
+                    [
+                        'api_token' => $this->token
+                    ]
+                );
+                
+                if ($response->failed()) {
+                    Log::error('SportMonks Leagues Error', [
+                        'status' => $response->status(),
+                        'body' => $response->body()
+                    ]);
+                    return ['data' => [], 'error' => 'API request failed'];
+                }
+
+                return $response->json();
+            });
+
+        } catch (\Exception $e) {
+            Log::error('SportMonks Exception: ' . $e->getMessage());
+            return ['data' => [], 'error' => $e->getMessage()];
+        }
     }
 
     /**
@@ -54,24 +63,38 @@ class SportMonksService
      */
     public function getStandingsByLeague($leagueId)
     {
-        $cacheKey = "sportmonks_standings_{$leagueId}";
-
-        return Cache::remember($cacheKey, now()->addHours(6), function () use ($leagueId) {
-            $response = Http::timeout(30)->get(
-                "{$this->baseUrl}/standings",
-                [
-                    'api_token' => $this->token,
-                    'filter' => json_encode(['league_id' => $leagueId]),
-                    'include' => 'participant;league'
-                ]
-            );
-            
-            if ($response->failed()) {
-                return ['data' => [], 'error' => 'API request failed'];
+        try {
+            if (empty($this->token)) {
+                return ['data' => [], 'error' => 'API token is not configured'];
             }
-            
-            return $response->json();
-        });
+
+            $cacheKey = "sportmonks_standings_{$leagueId}";
+
+            return Cache::remember($cacheKey, now()->addHours(6), function () use ($leagueId) {
+                $response = Http::timeout(30)->get(
+                    "{$this->baseUrl}/standings",
+                    [
+                        'api_token' => $this->token,
+                        'filter' => json_encode(['league_id' => $leagueId]),
+                        'include' => 'participant;league'
+                    ]
+                );
+                
+                if ($response->failed()) {
+                    Log::error('SportMonks Standings Error', [
+                        'status' => $response->status(),
+                        'body' => $response->body()
+                    ]);
+                    return ['data' => [], 'error' => 'API request failed'];
+                }
+                
+                return $response->json();
+            });
+
+        } catch (\Exception $e) {
+            Log::error('SportMonks Exception: ' . $e->getMessage());
+            return ['data' => [], 'error' => $e->getMessage()];
+        }
     }
 
     /**
@@ -93,7 +116,7 @@ class SportMonksService
             );
 
             if ($response->failed()) {
-                Log::error('SportMonks API Error', [
+                Log::error('SportMonks Live Scores Error', [
                     'status' => $response->status(),
                     'body' => $response->body()
                 ]);
@@ -129,6 +152,10 @@ class SportMonksService
             );
 
             if ($response->failed()) {
+                Log::error('SportMonks Fixtures Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
                 return ['data' => [], 'error' => 'API returned status ' . $response->status()];
             }
 
@@ -159,6 +186,10 @@ class SportMonksService
             );
 
             if ($response->failed()) {
+                Log::error('SportMonks Match Details Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
                 return ['data' => [], 'error' => 'API returned status ' . $response->status()];
             }
 
@@ -189,6 +220,10 @@ class SportMonksService
             );
 
             if ($response->failed()) {
+                Log::error('SportMonks Team Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
                 return ['data' => [], 'error' => 'API returned status ' . $response->status()];
             }
 
@@ -220,6 +255,10 @@ class SportMonksService
             );
 
             if ($response->failed()) {
+                Log::error('SportMonks Top Scorers Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
                 return ['data' => [], 'error' => 'API returned status ' . $response->status()];
             }
 
