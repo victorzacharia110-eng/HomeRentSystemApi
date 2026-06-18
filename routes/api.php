@@ -100,13 +100,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('comments/update/{id}', [CommentController::class, 'update']);
     Route::delete('comments/delete/{id}', [CommentController::class, 'destroy']);
 
-        // FOOTBALL
-    Route::prefix('football')->group(function () {
-        Route::get('/live', [FootballController::class, 'live']);
-        Route::get('/fixtures', [FootballController::class, 'fixtures']);
-        Route::get('/standings', [FootballController::class, 'standings']);
-        Route::get('/match/{fixtureId}', [FootballController::class, 'match']);
-        Route::get('/team/{teamId}', [FootballController::class, 'team']);
-        Route::get('/scorers', [FootballController::class, 'scorers']);
-    });
+// FOOTBALL
+Route::prefix('football')->group(function () {
+    Route::get('/live', [FootballController::class, 'live']);
+    Route::get('/fixtures', [FootballController::class, 'fixtures']);
+    Route::get('/standings', [FootballController::class, 'standings']);
+    Route::get('/leagues', [FootballController::class, 'leagues']); // NEW: Get all leagues
+    Route::get('/match/{fixtureId}', [FootballController::class, 'match']);
+    Route::get('/team/{teamId}', [FootballController::class, 'team']);
+    Route::get('/scorers', [FootballController::class, 'scorers']);
+});
 });

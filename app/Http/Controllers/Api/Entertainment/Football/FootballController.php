@@ -16,6 +16,9 @@ class FootballController extends Controller
         $this->sportmonks = $sportmonks;
     }
 
+    /**
+     * Get live scores from all available leagues
+     */
     public function live()
     {
         try {
@@ -29,11 +32,26 @@ class FootballController extends Controller
                 ], 500);
             }
 
+            // Get all live matches and enrich with league info
+            $liveMatches = $data['data'] ?? [];
+            
+            // Group by league for better organization
+            $grouped = [];
+            foreach ($liveMatches as $match) {
+                $leagueName = $match['league']['name'] ?? 'Unknown League';
+                if (!isset($grouped[$leagueName])) {
+                    $grouped[$leagueName] = [];
+                }
+                $grouped[$leagueName][] = $match;
+            }
+
             return response()->json([
                 'success' => true,
-                'data' => $data['data'] ?? [],
+                'data' => $liveMatches,
+                'grouped' => $grouped,
                 'meta' => [
-                    'count' => count($data['data'] ?? 0),
+                    'count' => count($liveMatches),
+                    'leagues' => array_keys($grouped),
                     'timestamp' => now()->toIso8601String()
                 ]
             ]);
@@ -48,6 +66,9 @@ class FootballController extends Controller
         }
     }
 
+    /**
+     * Get fixtures from all available leagues
+     */
     public function fixtures(Request $request)
     {
         try {
@@ -62,9 +83,27 @@ class FootballController extends Controller
                 ], 500);
             }
 
+            $fixtures = $data['data'] ?? [];
+            
+            // Group by league
+            $grouped = [];
+            foreach ($fixtures as $fixture) {
+                $leagueName = $fixture['league']['name'] ?? 'Unknown League';
+                if (!isset($grouped[$leagueName])) {
+                    $grouped[$leagueName] = [];
+                }
+                $grouped[$leagueName][] = $fixture;
+            }
+
             return response()->json([
                 'success' => true,
-                'data' => $data['data'] ?? []
+                'data' => $fixtures,
+                'grouped' => $grouped,
+                'meta' => [
+                    'count' => count($fixtures),
+                    'leagues' => array_keys($grouped),
+                    'date' => $date ?? now()->format('Y-m-d')
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -77,22 +116,57 @@ class FootballController extends Controller
         }
     }
 
-    public function standings()
+    /**
+     * Get standings for a specific league or all available leagues
+     */
+    public function standings(Request $request)
     {
         try {
-            $data = $this->sportmonks->getTanzaniaStandings();
+            $leagueId = $request->input('league_id');
             
-            if (isset($data['error'])) {
+            // If a specific league is requested
+            if ($leagueId) {
+                $data = $this->sportmonks->getStandingsByLeague($leagueId);
+                
+                if (isset($data['error'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $data['error'],
+                        'data' => []
+                    ], 500);
+                }
+
                 return response()->json([
-                    'success' => false,
-                    'message' => $data['error'],
-                    'data' => []
-                ], 500);
+                    'success' => true,
+                    'data' => $data['data'] ?? [],
+                    'meta' => [
+                        'league_id' => $leagueId,
+                        'source' => 'sportmonks'
+                    ]
+                ]);
+            }
+
+            // Get all available leagues and their standings
+            $allLeagues = $this->sportmonks->getAvailableLeagues();
+            $allStandings = [];
+            
+            foreach ($allLeagues['data'] ?? [] as $league) {
+                $leagueStandings = $this->sportmonks->getStandingsByLeague($league['id']);
+                if (!empty($leagueStandings['data'])) {
+                    $allStandings[$league['name']] = [
+                        'league_id' => $league['id'],
+                        'standings' => $leagueStandings['data']
+                    ];
+                }
             }
 
             return response()->json([
                 'success' => true,
-                'data' => $data['data'] ?? []
+                'data' => $allStandings,
+                'meta' => [
+                    'total_leagues' => count($allStandings),
+                    'leagues' => array_keys($allStandings)
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -105,6 +179,9 @@ class FootballController extends Controller
         }
     }
 
+    /**
+     * Get match details
+     */
     public function match($fixtureId)
     {
         try {
@@ -133,6 +210,9 @@ class FootballController extends Controller
         }
     }
 
+    /**
+     * Get team details
+     */
     public function team($teamId)
     {
         try {
@@ -161,11 +241,75 @@ class FootballController extends Controller
         }
     }
 
-    public function scorers()
+    /**
+     * Get top scorers from all available leagues
+     */
+    public function scorers(Request $request)
     {
         try {
-            $leagueId = config('services.sportmonks.tanzania_league_id', 12345);
-            $data = $this->sportmonks->getTopScorers($leagueId);
+            $leagueId = $request->input('league_id');
+            
+            // If specific league requested
+            if ($leagueId) {
+                $data = $this->sportmonks->getTopScorers($leagueId);
+                
+                if (isset($data['error'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $data['error'],
+                        'data' => []
+                    ], 500);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'data' => $data['data'] ?? [],
+                    'meta' => [
+                        'league_id' => $leagueId
+                    ]
+                ]);
+            }
+
+            // Get top scorers from all available leagues
+            $allLeagues = $this->sportmonks->getAvailableLeagues();
+            $allScorers = [];
+            
+            foreach ($allLeagues['data'] ?? [] as $league) {
+                $scorers = $this->sportmonks->getTopScorers($league['id']);
+                if (!empty($scorers['data'])) {
+                    $allScorers[$league['name']] = [
+                        'league_id' => $league['id'],
+                        'scorers' => $scorers['data']
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $allScorers,
+                'meta' => [
+                    'total_leagues' => count($allScorers),
+                    'leagues' => array_keys($allScorers)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Football scorers error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'data' => []
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all available leagues
+     */
+    public function leagues()
+    {
+        try {
+            $data = $this->sportmonks->getAvailableLeagues();
             
             if (isset($data['error'])) {
                 return response()->json([
@@ -177,11 +321,14 @@ class FootballController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $data['data'] ?? []
+                'data' => $data['data'] ?? [],
+                'meta' => [
+                    'count' => count($data['data'] ?? 0)
+                ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Football scorers error: ' . $e->getMessage());
+            Log::error('Football leagues error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
