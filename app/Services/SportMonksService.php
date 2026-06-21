@@ -295,6 +295,7 @@ class SportMonksService
                 return ['data' => null, 'error' => 'Fixture ID is required'];
             }
 
+            
             if (!is_numeric($fixtureId)) {
                 return ['data' => null, 'error' => 'Invalid Fixture ID format'];
             }
