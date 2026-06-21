@@ -42,6 +42,7 @@ Route::post('user/create', [UserController::class, "store"]);
 Route::post('payment/callback', [PaymentController::class, 'callback']);
 Route::post('user/auth', [UserAuthController::class, 'login']);
 Route::post('user/forgot-password', [UserAuthController::class, 'forgotPassword']);
+Route::post('user/reset-password', [UserAuthController::class, 'resetPassword']);
 
 /*
 |--------------------------------------------------------------------------

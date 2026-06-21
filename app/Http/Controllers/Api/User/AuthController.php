@@ -62,4 +62,26 @@ public function forgotPassword(Request $request)
         ? response()->json(['message' => 'Reset link sent to your email.'])
         : response()->json(['message' => 'Unable to send reset link.'], 500);
 }
+
+public function resetPassword(Request $request)
+{
+    $request->validate([
+        'email' => 'required|email',
+        'token' => 'required|string',
+        'password' => 'required|string|min:8|confirmed',
+    ]);
+
+    $status = Password::reset(
+        $request->only('email', 'password', 'password_confirmation', 'token'),
+        function (User $user, string $password) {
+            $user->forceFill([
+                'password' => $password,
+            ])->save();
+        }
+    );
+
+    return $status === Password::PASSWORD_RESET
+        ? response()->json(['message' => 'Password has been reset successfully.'])
+        : response()->json(['message' => 'Invalid reset token or email.'], 400);
+}
 }
