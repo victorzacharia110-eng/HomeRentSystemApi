@@ -105,22 +105,29 @@ class SportMonksService
                 return ['data' => [], 'error' => 'API token is not configured'];
             }
 
+            if (empty($leagueId)) {
+                return ['data' => [], 'error' => 'League ID is required'];
+            }
+
             $cacheKey = "sportmonks_standings_{$leagueId}";
 
             return Cache::remember($cacheKey, now()->addHours(6), function () use ($leagueId) {
+                $params = [
+                    'api_token' => $this->token,
+                    'filter[league_id]' => $leagueId,
+                    'include' => 'participant;league;season;stage'
+                ];
+
                 $response = Http::timeout(30)->get(
                     "{$this->baseUrl}/standings",
-                    [
-                        'api_token' => $this->token,
-                        'filter' => json_encode(['league_id' => $leagueId]),
-                        'include' => 'participant;league'
-                    ]
+                    $params
                 );
 
                 if ($response->failed()) {
                     Log::error('SportMonks Standings Error', [
                         'status' => $response->status(),
-                        'body' => $response->body()
+                        'body' => $response->body(),
+                        'league_id' => $leagueId
                     ]);
                     return ['data' => [], 'error' => 'API request failed: ' . $response->body()];
                 }
@@ -193,23 +200,33 @@ class SportMonksService
 
             $date = $date ?? now()->format('Y-m-d');
 
-            $response = Http::timeout(30)->get(
-                "{$this->baseUrl}/fixtures/date/{$date}",
-                [
-                    'api_token' => $this->token,
-                    'include' => 'participants;venue;league;season;state;scores'
-                ]
-            );
-
-            if ($response->failed()) {
-                Log::error('SportMonks Fixtures Error', [
-                    'status' => $response->status(),
-                    'body' => $response->body()
-                ]);
-                return ['data' => [], 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
+            // Validate date format
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+                return ['data' => [], 'error' => 'Invalid date format. Use YYYY-MM-DD'];
             }
 
-            return $response->json();
+            $cacheKey = "sportmonks_fixtures_{$date}";
+
+            return Cache::remember($cacheKey, now()->addHours(2), function () use ($date) {
+                $response = Http::timeout(30)->get(
+                    "{$this->baseUrl}/fixtures/date/{$date}",
+                    [
+                        'api_token' => $this->token,
+                        'include' => 'participants;venue;league;season;state;scores;comments'
+                    ]
+                );
+
+                if ($response->failed()) {
+                    Log::error('SportMonks Fixtures Error', [
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                        'date' => $date
+                    ]);
+                    return ['data' => [], 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
+                }
+
+                return $response->json();
+            });
         } catch (\Exception $e) {
             Log::error('SportMonks Exception: ' . $e->getMessage());
             return ['data' => [], 'error' => $e->getMessage()];
@@ -226,13 +243,13 @@ class SportMonksService
                 return ['data' => [], 'error' => 'API token is not configured'];
             }
 
-            // Build query parameters
+            // Build query parameters using SportMonks v3 filter format
             $params = [
                 'api_token' => $this->token,
-                'include' => 'participants;venue;league;season;state;scores'
+                'include' => 'participants;venue;league;season;state;scores;comments'
             ];
 
-            // SportMonks v3 uses filter[field]=value format
+            // Add filters in proper format: filter[field]=value
             foreach ($filters as $key => $value) {
                 if (is_array($value)) {
                     foreach ($value as $item) {
@@ -252,7 +269,7 @@ class SportMonksService
                 Log::error('SportMonks Fixtures With Filters Error', [
                     'status' => $response->status(),
                     'body' => $response->body(),
-                    'params' => $params
+                    'filters' => $filters
                 ]);
                 return ['data' => [], 'error' => 'API request failed: ' . $response->body()];
             }
@@ -271,29 +288,42 @@ class SportMonksService
     {
         try {
             if (empty($this->token)) {
-                return ['data' => [], 'error' => 'API token is not configured'];
+                return ['data' => null, 'error' => 'API token is not configured'];
             }
 
-            $response = Http::timeout(30)->get(
-                "{$this->baseUrl}/fixtures/{$fixtureId}",
-                [
-                    'api_token' => $this->token,
-                    'include' => 'participants;scores;events;statistics;venue;league;season;state'
-                ]
-            );
-
-            if ($response->failed()) {
-                Log::error('SportMonks Match Details Error', [
-                    'status' => $response->status(),
-                    'body' => $response->body()
-                ]);
-                return ['data' => [], 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
+            if (empty($fixtureId)) {
+                return ['data' => null, 'error' => 'Fixture ID is required'];
             }
 
-            return $response->json();
+            if (!is_numeric($fixtureId)) {
+                return ['data' => null, 'error' => 'Invalid Fixture ID format'];
+            }
+
+            $cacheKey = "sportmonks_match_{$fixtureId}";
+
+            return Cache::remember($cacheKey, now()->addHours(1), function () use ($fixtureId) {
+                $response = Http::timeout(30)->get(
+                    "{$this->baseUrl}/fixtures/{$fixtureId}",
+                    [
+                        'api_token' => $this->token,
+                        'include' => 'participants;scores;events;statistics;venue;league;season;state;comments'
+                    ]
+                );
+
+                if ($response->failed()) {
+                    Log::error('SportMonks Match Details Error', [
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                        'fixture_id' => $fixtureId
+                    ]);
+                    return ['data' => null, 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
+                }
+
+                return $response->json();
+            });
         } catch (\Exception $e) {
             Log::error('SportMonks Exception: ' . $e->getMessage());
-            return ['data' => [], 'error' => $e->getMessage()];
+            return ['data' => null, 'error' => $e->getMessage()];
         }
     }
 
@@ -304,29 +334,42 @@ class SportMonksService
     {
         try {
             if (empty($this->token)) {
-                return ['data' => [], 'error' => 'API token is not configured'];
+                return ['data' => null, 'error' => 'API token is not configured'];
             }
 
-            $response = Http::timeout(30)->get(
-                "{$this->baseUrl}/teams/{$teamId}",
-                [
-                    'api_token' => $this->token,
-                    'include' => 'players;coach;venue'
-                ]
-            );
-
-            if ($response->failed()) {
-                Log::error('SportMonks Team Error', [
-                    'status' => $response->status(),
-                    'body' => $response->body()
-                ]);
-                return ['data' => [], 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
+            if (empty($teamId)) {
+                return ['data' => null, 'error' => 'Team ID is required'];
             }
 
-            return $response->json();
+            if (!is_numeric($teamId)) {
+                return ['data' => null, 'error' => 'Invalid Team ID format'];
+            }
+
+            $cacheKey = "sportmonks_team_{$teamId}";
+
+            return Cache::remember($cacheKey, now()->addHours(24), function () use ($teamId) {
+                $response = Http::timeout(30)->get(
+                    "{$this->baseUrl}/teams/{$teamId}",
+                    [
+                        'api_token' => $this->token,
+                        'include' => 'players;coach;venue;season;league'
+                    ]
+                );
+
+                if ($response->failed()) {
+                    Log::error('SportMonks Team Error', [
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                        'team_id' => $teamId
+                    ]);
+                    return ['data' => null, 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
+                }
+
+                return $response->json();
+            });
         } catch (\Exception $e) {
             Log::error('SportMonks Exception: ' . $e->getMessage());
-            return ['data' => [], 'error' => $e->getMessage()];
+            return ['data' => null, 'error' => $e->getMessage()];
         }
     }
 
@@ -340,24 +383,35 @@ class SportMonksService
                 return ['data' => [], 'error' => 'API token is not configured'];
             }
 
-            $response = Http::timeout(30)->get(
-                "{$this->baseUrl}/topscorers",
-                [
-                    'api_token' => $this->token,
-                    'filter' => json_encode(['league_id' => $leagueId]),
-                    'include' => 'participant;team'
-                ]
-            );
-
-            if ($response->failed()) {
-                Log::error('SportMonks Top Scorers Error', [
-                    'status' => $response->status(),
-                    'body' => $response->body()
-                ]);
-                return ['data' => [], 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
+            if (empty($leagueId)) {
+                return ['data' => [], 'error' => 'League ID is required'];
             }
 
-            return $response->json();
+            $cacheKey = "sportmonks_topscorers_{$leagueId}";
+
+            return Cache::remember($cacheKey, now()->addHours(6), function () use ($leagueId) {
+                $params = [
+                    'api_token' => $this->token,
+                    'filter[league_id]' => $leagueId,
+                    'include' => 'participant;team;season;league'
+                ];
+
+                $response = Http::timeout(30)->get(
+                    "{$this->baseUrl}/topscorers",
+                    $params
+                );
+
+                if ($response->failed()) {
+                    Log::error('SportMonks Top Scorers Error', [
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                        'league_id' => $leagueId
+                    ]);
+                    return ['data' => [], 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
+                }
+
+                return $response->json();
+            });
         } catch (\Exception $e) {
             Log::error('SportMonks Exception: ' . $e->getMessage());
             return ['data' => [], 'error' => $e->getMessage()];

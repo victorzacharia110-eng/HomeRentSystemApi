@@ -133,6 +133,14 @@ class FootballController extends Controller
             
             // If specific league requested
             if ($leagueId) {
+                if (!is_numeric($leagueId)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid league ID format',
+                        'data' => []
+                    ], 400);
+                }
+
                 $data = $this->sportmonks->getStandingsByLeague($leagueId);
                 
                 if (isset($data['error'])) {
@@ -227,6 +235,14 @@ class FootballController extends Controller
     public function match($fixtureId)
     {
         try {
+            if (empty($fixtureId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Fixture ID is required',
+                    'data' => null
+                ], 400);
+            }
+
             $data = $this->sportmonks->getMatchDetails($fixtureId);
             
             if (isset($data['error'])) {
@@ -261,6 +277,14 @@ class FootballController extends Controller
     public function team($teamId)
     {
         try {
+            if (empty($teamId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Team ID is required',
+                    'data' => null
+                ], 400);
+            }
+
             $data = $this->sportmonks->getTeam($teamId);
             
             if (isset($data['error'])) {
@@ -299,6 +323,14 @@ class FootballController extends Controller
             
             // If specific league requested
             if ($leagueId) {
+                if (!is_numeric($leagueId)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid league ID format',
+                        'data' => []
+                    ], 400);
+                }
+
                 $data = $this->sportmonks->getTopScorers($leagueId);
                 
                 if (isset($data['error'])) {
