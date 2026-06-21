@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -18,8 +19,29 @@ return Application::configure(basePath: dirname(__DIR__))
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
 
+        // Optional: Add CORS middleware if needed
+        // $middleware->api(prepend: [
+        //     \Illuminate\Http\Middleware\HandleCors::class,
+        // ]);
+
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // FIX: Always return JSON for API requests
+        $exceptions->shouldRenderJsonWhen(
+            fn(Request $request) => $request->is('api/*') || $request->wantsJson()
+        );
+        
+        // Optional: Customize exception rendering for API
+        $exceptions->render(function (Throwable $e, Request $request) {
+            if ($request->is('api/*') || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'exception' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ], $e->getCode() ?: 500);
+            }
+        });
     })
     ->create();

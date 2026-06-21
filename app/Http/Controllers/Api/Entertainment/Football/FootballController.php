@@ -7,8 +7,11 @@ use App\Services\SportMonksService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
+
 class FootballController extends Controller
 {
+
+
     protected SportMonksService $sportmonks;
 
     public function __construct(SportMonksService $sportmonks)

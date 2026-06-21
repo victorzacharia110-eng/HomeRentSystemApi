@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\App;
 
 use App\Http\Controllers\Api\Building\RoomController;
 use App\Http\Controllers\Api\Building\RuleController;
@@ -13,6 +14,23 @@ use App\Http\Controllers\Api\User\LatePaymentReasonController;
 use App\Http\Controllers\Api\User\PaymentController;
 use App\Http\Controllers\Api\User\PaymentMethodController;
 use App\Http\Controllers\Api\User\UserController;
+
+/*
+|--------------------------------------------------------------------------
+| API HEALTH CHECK
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/health', function () {
+    return response()->json([
+        'success' => true,
+        'message' => '🚀 API is working!',
+        'timestamp' => now()->toIso8601String(),
+        'version' => App::version(),
+        'environment' => app()->environment(),
+        'php_version' => PHP_VERSION,
+    ]);
+});
 
 /*
 |--------------------------------------------------------------------------
