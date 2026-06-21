@@ -145,7 +145,7 @@ class SportMonksService
 
             // Get current date for live matches
             $today = now()->format('Y-m-d');
-            
+
             $response = Http::timeout(30)->get(
                 "{$this->baseUrl}/fixtures/date/{$today}",
                 [
@@ -163,10 +163,10 @@ class SportMonksService
             }
 
             $data = $response->json();
-            
+
             // Filter to only include in-progress or upcoming matches
             if (isset($data['data'])) {
-                $data['data'] = array_filter($data['data'], function($fixture) {
+                $data['data'] = array_filter($data['data'], function ($fixture) {
                     // Only include matches that are not finished (state_id 1,2,3,4)
                     return in_array($fixture['state_id'] ?? 0, [1, 2, 3, 4]);
                 });
