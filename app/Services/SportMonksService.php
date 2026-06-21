@@ -15,7 +15,7 @@ class SportMonksService
     {
         $this->baseUrl = config('services.sportmonks.base_url', 'https://api.sportmonks.com/v3/football');
         $this->token = config('services.sportmonks.token');
-        
+
         if (empty($this->token)) {
             Log::error('SportMonks API token is not configured!');
         }
@@ -37,10 +37,11 @@ class SportMonksService
                 $response = Http::timeout(30)->get(
                     "{$this->baseUrl}/leagues",
                     [
-                        'api_token' => $this->token
+                        'api_token' => $this->token,
+                        'include' => 'season;stage'
                     ]
                 );
-                
+
                 if ($response->failed()) {
                     Log::error('SportMonks Leagues Error', [
                         'status' => $response->status(),
@@ -51,7 +52,6 @@ class SportMonksService
 
                 return $response->json();
             });
-
         } catch (\Exception $e) {
             Log::error('SportMonks Exception: ' . $e->getMessage());
             return ['data' => [], 'error' => $e->getMessage()];
@@ -79,7 +79,7 @@ class SportMonksService
                         'include' => 'participant;league'
                     ]
                 );
-                
+
                 if ($response->failed()) {
                     Log::error('SportMonks Standings Error', [
                         'status' => $response->status(),
@@ -87,10 +87,9 @@ class SportMonksService
                     ]);
                     return ['data' => [], 'error' => 'API request failed'];
                 }
-                
+
                 return $response->json();
             });
-
         } catch (\Exception $e) {
             Log::error('SportMonks Exception: ' . $e->getMessage());
             return ['data' => [], 'error' => $e->getMessage()];
@@ -98,7 +97,7 @@ class SportMonksService
     }
 
     /**
-     * Get all live scores
+     * Get all live scores - FIXED for SportMonks v3
      */
     public function getLiveScores()
     {
@@ -107,11 +106,17 @@ class SportMonksService
                 return ['data' => [], 'error' => 'API token is not configured'];
             }
 
+            // Get current date for live matches
+            $today = now()->format('Y-m-d');
+            
             $response = Http::timeout(30)->get(
-                "{$this->baseUrl}/livescores",
+                "{$this->baseUrl}/fixtures/date/{$today}",
                 [
                     'api_token' => $this->token,
-                    'include' => 'participants;scores;league;venue;season;timer'
+                    'include' => 'participants;scores;league;venue;season;timer;state',
+                    'filters' => json_encode([
+                        'state_id' => [1, 2, 3, 4, 5] // 1=Not Started, 2=In Progress, 3=Halftime, 4=Extra Time, 5=Full Time
+                    ])
                 ]
             );
 
@@ -123,8 +128,19 @@ class SportMonksService
                 return ['data' => [], 'error' => 'API returned status ' . $response->status()];
             }
 
-            return $response->json();
+            $data = $response->json();
+            
+            // Filter to only include in-progress or upcoming matches
+            if (isset($data['data'])) {
+                $data['data'] = array_filter($data['data'], function($fixture) {
+                    // Only include matches that are not finished
+                    return in_array($fixture['state_id'] ?? 0, [1, 2, 3, 4]);
+                });
+                // Re-index array
+                $data['data'] = array_values($data['data']);
+            }
 
+            return $data;
         } catch (\Exception $e) {
             Log::error('SportMonks Exception: ' . $e->getMessage());
             return ['data' => [], 'error' => $e->getMessage()];
@@ -132,7 +148,7 @@ class SportMonksService
     }
 
     /**
-     * Get fixtures for a specific date
+     * Get fixtures for a specific date - FIXED for SportMonks v3
      */
     public function getFixtures($date = null)
     {
@@ -142,12 +158,12 @@ class SportMonksService
             }
 
             $date = $date ?? now()->format('Y-m-d');
-            
+
             $response = Http::timeout(30)->get(
                 "{$this->baseUrl}/fixtures/date/{$date}",
                 [
                     'api_token' => $this->token,
-                    'include' => 'participants;venue;league;season'
+                    'include' => 'participants;venue;league;season;state;scores;timer'
                 ]
             );
 
@@ -160,7 +176,52 @@ class SportMonksService
             }
 
             return $response->json();
+        } catch (\Exception $e) {
+            Log::error('SportMonks Exception: ' . $e->getMessage());
+            return ['data' => [], 'error' => $e->getMessage()];
+        }
+    }
 
+    /**
+     * Get fixtures with filters (like you tested with Thunderclient)
+     */
+    public function getFixturesWithFilters($filters = [])
+    {
+        try {
+            if (empty($this->token)) {
+                return ['data' => [], 'error' => 'API token is not configured'];
+            }
+
+            $params = [
+                'api_token' => $this->token,
+                'include' => 'participants;venue;league;season;state;scores;timer'
+            ];
+
+            // Add filters if provided
+            if (!empty($filters)) {
+                $params['filters'] = json_encode($filters);
+            }
+
+            // Add pagination if needed
+            if (isset($filters['page'])) {
+                $params['page'] = $filters['page'];
+            }
+
+            // You can also use the direct fixtures endpoint with filters
+            $response = Http::timeout(30)->get(
+                "{$this->baseUrl}/fixtures",
+                $params
+            );
+
+            if ($response->failed()) {
+                Log::error('SportMonks Fixtures Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
+                return ['data' => [], 'error' => 'API request failed'];
+            }
+
+            return $response->json();
         } catch (\Exception $e) {
             Log::error('SportMonks Exception: ' . $e->getMessage());
             return ['data' => [], 'error' => $e->getMessage()];
@@ -181,7 +242,7 @@ class SportMonksService
                 "{$this->baseUrl}/fixtures/{$fixtureId}",
                 [
                     'api_token' => $this->token,
-                    'include' => 'participants;scores;events;statistics;venue;league;season'
+                    'include' => 'participants;scores;events;statistics;venue;league;season;state;timer'
                 ]
             );
 
@@ -194,7 +255,6 @@ class SportMonksService
             }
 
             return $response->json();
-
         } catch (\Exception $e) {
             Log::error('SportMonks Exception: ' . $e->getMessage());
             return ['data' => [], 'error' => $e->getMessage()];
@@ -228,7 +288,6 @@ class SportMonksService
             }
 
             return $response->json();
-
         } catch (\Exception $e) {
             Log::error('SportMonks Exception: ' . $e->getMessage());
             return ['data' => [], 'error' => $e->getMessage()];
@@ -263,7 +322,6 @@ class SportMonksService
             }
 
             return $response->json();
-
         } catch (\Exception $e) {
             Log::error('SportMonks Exception: ' . $e->getMessage());
             return ['data' => [], 'error' => $e->getMessage()];

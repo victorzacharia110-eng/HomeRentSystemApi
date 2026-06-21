@@ -35,9 +35,10 @@ return [
         ],
     ],
 
-    'sportmonks' => [
-    'token' => env('SPORTMONKS_API_TOKEN'),
-    'base_url' => env('SPORTMONKS_BASE_URL'),
+'sportmonks' => [
+    'token' => env('SPORTMONKS_TOKEN'),
+    'base_url' => env('SPORTMONKS_BASE_URL', 'https://api.sportmonks.com/v3/football'),
+    'tanzania_league_id' => env('SPORTMONKS_TANZANIA_LEAGUE_ID', 12345),
 ],
 
 ];

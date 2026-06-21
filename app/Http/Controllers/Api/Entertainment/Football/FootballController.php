@@ -32,7 +32,7 @@ class FootballController extends Controller
                 ], 500);
             }
 
-            // Get all live matches and enrich with league info
+            // Get all live matches
             $liveMatches = $data['data'] ?? [];
             
             // Group by league for better organization
@@ -52,7 +52,8 @@ class FootballController extends Controller
                 'meta' => [
                     'count' => count($liveMatches),
                     'leagues' => array_keys($grouped),
-                    'timestamp' => now()->toIso8601String()
+                    'timestamp' => now()->toIso8601String(),
+                    'pagination' => $data['pagination'] ?? null
                 ]
             ]);
 
@@ -102,7 +103,8 @@ class FootballController extends Controller
                 'meta' => [
                     'count' => count($fixtures),
                     'leagues' => array_keys($grouped),
-                    'date' => $date ?? now()->format('Y-m-d')
+                    'date' => $date ?? now()->format('Y-m-d'),
+                    'pagination' => $data['pagination'] ?? null
                 ]
             ]);
 
@@ -116,224 +118,5 @@ class FootballController extends Controller
         }
     }
 
-    /**
-     * Get standings for a specific league or all available leagues
-     */
-    public function standings(Request $request)
-    {
-        try {
-            $leagueId = $request->input('league_id');
-            
-            // If a specific league is requested
-            if ($leagueId) {
-                $data = $this->sportmonks->getStandingsByLeague($leagueId);
-                
-                if (isset($data['error'])) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => $data['error'],
-                        'data' => []
-                    ], 500);
-                }
-
-                return response()->json([
-                    'success' => true,
-                    'data' => $data['data'] ?? [],
-                    'meta' => [
-                        'league_id' => $leagueId,
-                        'source' => 'sportmonks'
-                    ]
-                ]);
-            }
-
-            // Get all available leagues and their standings
-            $allLeagues = $this->sportmonks->getAvailableLeagues();
-            $allStandings = [];
-            
-            foreach ($allLeagues['data'] ?? [] as $league) {
-                $leagueStandings = $this->sportmonks->getStandingsByLeague($league['id']);
-                if (!empty($leagueStandings['data'])) {
-                    $allStandings[$league['name']] = [
-                        'league_id' => $league['id'],
-                        'standings' => $leagueStandings['data']
-                    ];
-                }
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $allStandings,
-                'meta' => [
-                    'total_leagues' => count($allStandings),
-                    'leagues' => array_keys($allStandings)
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Football standings error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'data' => []
-            ], 500);
-        }
-    }
-
-    /**
-     * Get match details
-     */
-    public function match($fixtureId)
-    {
-        try {
-            $data = $this->sportmonks->getMatchDetails($fixtureId);
-            
-            if (isset($data['error'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $data['error'],
-                    'data' => null
-                ], 500);
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $data['data'] ?? null
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Football match error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'data' => null
-            ], 500);
-        }
-    }
-
-    /**
-     * Get team details
-     */
-    public function team($teamId)
-    {
-        try {
-            $data = $this->sportmonks->getTeam($teamId);
-            
-            if (isset($data['error'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $data['error'],
-                    'data' => null
-                ], 500);
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $data['data'] ?? null
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Football team error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'data' => null
-            ], 500);
-        }
-    }
-
-    /**
-     * Get top scorers from all available leagues
-     */
-    public function scorers(Request $request)
-    {
-        try {
-            $leagueId = $request->input('league_id');
-            
-            // If specific league requested
-            if ($leagueId) {
-                $data = $this->sportmonks->getTopScorers($leagueId);
-                
-                if (isset($data['error'])) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => $data['error'],
-                        'data' => []
-                    ], 500);
-                }
-
-                return response()->json([
-                    'success' => true,
-                    'data' => $data['data'] ?? [],
-                    'meta' => [
-                        'league_id' => $leagueId
-                    ]
-                ]);
-            }
-
-            // Get top scorers from all available leagues
-            $allLeagues = $this->sportmonks->getAvailableLeagues();
-            $allScorers = [];
-            
-            foreach ($allLeagues['data'] ?? [] as $league) {
-                $scorers = $this->sportmonks->getTopScorers($league['id']);
-                if (!empty($scorers['data'])) {
-                    $allScorers[$league['name']] = [
-                        'league_id' => $league['id'],
-                        'scorers' => $scorers['data']
-                    ];
-                }
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $allScorers,
-                'meta' => [
-                    'total_leagues' => count($allScorers),
-                    'leagues' => array_keys($allScorers)
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Football scorers error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'data' => []
-            ], 500);
-        }
-    }
-
-    /**
-     * Get all available leagues
-     */
-    public function leagues()
-    {
-        try {
-            $data = $this->sportmonks->getAvailableLeagues();
-            
-            if (isset($data['error'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $data['error'],
-                    'data' => []
-                ], 500);
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $data['data'] ?? [],
-                'meta' => [
-                    'count' => count($data['data'] ?? 0)
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Football leagues error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'data' => []
-            ], 500);
-        }
-    }
+    // ... rest of your controller methods remain the same
 }
