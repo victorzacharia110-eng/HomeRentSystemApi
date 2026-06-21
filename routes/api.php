@@ -27,6 +27,23 @@ Route::post('user/forgot-password', [UserAuthController::class, 'forgotPassword'
 
 /*
 |--------------------------------------------------------------------------
+| FOOTBALL PUBLIC ROUTES (NO AUTH)
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('football')->group(function () {
+    Route::get('/live', [FootballController::class, 'live']);
+    Route::get('/fixtures', [FootballController::class, 'fixtures']);
+    Route::get('/standings', [FootballController::class, 'standings']);
+    Route::get('/leagues', [FootballController::class, 'leagues']);
+    Route::get('/match/{fixtureId}', [FootballController::class, 'match']);
+    Route::get('/team/{teamId}', [FootballController::class, 'team']);
+    Route::get('/scorers', [FootballController::class, 'scorers']);
+    Route::get('/test', [FootballController::class, 'testConnection']);
+});
+
+/*
+|--------------------------------------------------------------------------
 | PROTECTED ROUTES (SANCTUM AUTH)
 |--------------------------------------------------------------------------
 */
@@ -71,7 +88,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('remarks/update/{id}', [CriticalRemarkController::class, 'update']);
     Route::delete('remarks/delete/{id}', [CriticalRemarkController::class, 'destroy']);
 
-
     // PAYMENT METHODS
     Route::get('method/fetch', [PaymentMethodController::class, 'index']);
     Route::get('method/show/{id}', [PaymentMethodController::class, 'show']);
@@ -99,15 +115,4 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('comments/create', [CommentController::class, 'store']);
     Route::patch('comments/update/{id}', [CommentController::class, 'update']);
     Route::delete('comments/delete/{id}', [CommentController::class, 'destroy']);
-
-// FOOTBALL
-Route::prefix('football')->group(function () {
-    Route::get('/live', [FootballController::class, 'live']);
-    Route::get('/fixtures', [FootballController::class, 'fixtures']);
-    Route::get('/standings', [FootballController::class, 'standings']);
-    Route::get('/leagues', [FootballController::class, 'leagues']); // NEW: Get all leagues
-    Route::get('/match/{fixtureId}', [FootballController::class, 'match']);
-    Route::get('/team/{teamId}', [FootballController::class, 'team']);
-    Route::get('/scorers', [FootballController::class, 'scorers']);
-});
 });

@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 class SportMonksService
 {
     protected string $baseUrl;
-    protected string $token;
+    protected ?string $token;
 
     public function __construct()
     {
@@ -18,6 +18,43 @@ class SportMonksService
 
         if (empty($this->token)) {
             Log::error('SportMonks API token is not configured!');
+        }
+    }
+
+    /**
+     * Test the API connection
+     */
+    public function testConnection()
+    {
+        try {
+            if (empty($this->token)) {
+                return ['success' => false, 'message' => 'API token is not configured'];
+            }
+
+            $response = Http::timeout(10)->get(
+                "{$this->baseUrl}/leagues",
+                [
+                    'api_token' => $this->token,
+                    'per_page' => 1
+                ]
+            );
+
+            if ($response->failed()) {
+                return [
+                    'success' => false,
+                    'message' => 'API connection failed: ' . $response->status(),
+                    'body' => $response->body()
+                ];
+            }
+
+            $data = $response->json();
+            return [
+                'success' => true,
+                'message' => 'API connection successful',
+                'data' => $data
+            ];
+        } catch (\Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
         }
     }
 
@@ -47,7 +84,7 @@ class SportMonksService
                         'status' => $response->status(),
                         'body' => $response->body()
                     ]);
-                    return ['data' => [], 'error' => 'API request failed'];
+                    return ['data' => [], 'error' => 'API request failed: ' . $response->body()];
                 }
 
                 return $response->json();
@@ -85,7 +122,7 @@ class SportMonksService
                         'status' => $response->status(),
                         'body' => $response->body()
                     ]);
-                    return ['data' => [], 'error' => 'API request failed'];
+                    return ['data' => [], 'error' => 'API request failed: ' . $response->body()];
                 }
 
                 return $response->json();
@@ -97,7 +134,7 @@ class SportMonksService
     }
 
     /**
-     * Get all live scores - FIXED for SportMonks v3
+     * Get all live scores
      */
     public function getLiveScores()
     {
@@ -113,10 +150,7 @@ class SportMonksService
                 "{$this->baseUrl}/fixtures/date/{$today}",
                 [
                     'api_token' => $this->token,
-                    'include' => 'participants;scores;league;venue;season;timer;state',
-                    'filters' => json_encode([
-                        'state_id' => [1, 2, 3, 4, 5] // 1=Not Started, 2=In Progress, 3=Halftime, 4=Extra Time, 5=Full Time
-                    ])
+                    'include' => 'participants;scores;league;venue;season;timer;state'
                 ]
             );
 
@@ -125,7 +159,7 @@ class SportMonksService
                     'status' => $response->status(),
                     'body' => $response->body()
                 ]);
-                return ['data' => [], 'error' => 'API returned status ' . $response->status()];
+                return ['data' => [], 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
             }
 
             $data = $response->json();
@@ -133,7 +167,7 @@ class SportMonksService
             // Filter to only include in-progress or upcoming matches
             if (isset($data['data'])) {
                 $data['data'] = array_filter($data['data'], function($fixture) {
-                    // Only include matches that are not finished
+                    // Only include matches that are not finished (state_id 1,2,3,4)
                     return in_array($fixture['state_id'] ?? 0, [1, 2, 3, 4]);
                 });
                 // Re-index array
@@ -148,7 +182,7 @@ class SportMonksService
     }
 
     /**
-     * Get fixtures for a specific date - FIXED for SportMonks v3
+     * Get fixtures for a specific date
      */
     public function getFixtures($date = null)
     {
@@ -172,7 +206,7 @@ class SportMonksService
                     'status' => $response->status(),
                     'body' => $response->body()
                 ]);
-                return ['data' => [], 'error' => 'API returned status ' . $response->status()];
+                return ['data' => [], 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
             }
 
             return $response->json();
@@ -183,7 +217,7 @@ class SportMonksService
     }
 
     /**
-     * Get fixtures with filters (like you tested with Thunderclient)
+     * Get fixtures with filters
      */
     public function getFixturesWithFilters($filters = [])
     {
@@ -192,33 +226,35 @@ class SportMonksService
                 return ['data' => [], 'error' => 'API token is not configured'];
             }
 
+            // Build query parameters
             $params = [
                 'api_token' => $this->token,
                 'include' => 'participants;venue;league;season;state;scores;timer'
             ];
 
-            // Add filters if provided
-            if (!empty($filters)) {
-                $params['filters'] = json_encode($filters);
+            // SportMonks v3 uses filter[field]=value format
+            foreach ($filters as $key => $value) {
+                if (is_array($value)) {
+                    foreach ($value as $item) {
+                        $params["filter[{$key}][]"] = $item;
+                    }
+                } else {
+                    $params["filter[{$key}]"] = $value;
+                }
             }
 
-            // Add pagination if needed
-            if (isset($filters['page'])) {
-                $params['page'] = $filters['page'];
-            }
-
-            // You can also use the direct fixtures endpoint with filters
             $response = Http::timeout(30)->get(
                 "{$this->baseUrl}/fixtures",
                 $params
             );
 
             if ($response->failed()) {
-                Log::error('SportMonks Fixtures Error', [
+                Log::error('SportMonks Fixtures With Filters Error', [
                     'status' => $response->status(),
-                    'body' => $response->body()
+                    'body' => $response->body(),
+                    'params' => $params
                 ]);
-                return ['data' => [], 'error' => 'API request failed'];
+                return ['data' => [], 'error' => 'API request failed: ' . $response->body()];
             }
 
             return $response->json();
@@ -251,7 +287,7 @@ class SportMonksService
                     'status' => $response->status(),
                     'body' => $response->body()
                 ]);
-                return ['data' => [], 'error' => 'API returned status ' . $response->status()];
+                return ['data' => [], 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
             }
 
             return $response->json();
@@ -284,7 +320,7 @@ class SportMonksService
                     'status' => $response->status(),
                     'body' => $response->body()
                 ]);
-                return ['data' => [], 'error' => 'API returned status ' . $response->status()];
+                return ['data' => [], 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
             }
 
             return $response->json();
@@ -318,7 +354,7 @@ class SportMonksService
                     'status' => $response->status(),
                     'body' => $response->body()
                 ]);
-                return ['data' => [], 'error' => 'API returned status ' . $response->status()];
+                return ['data' => [], 'error' => 'API returned status ' . $response->status() . ': ' . $response->body()];
             }
 
             return $response->json();
