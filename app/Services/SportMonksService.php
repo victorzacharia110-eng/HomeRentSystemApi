@@ -150,7 +150,7 @@ class SportMonksService
                 "{$this->baseUrl}/fixtures/date/{$today}",
                 [
                     'api_token' => $this->token,
-                    'include' => 'participants;scores;league;venue;season;timer;state'
+                    'include' => 'participants;scores;league;venue;season;state'
                 ]
             );
 
@@ -197,7 +197,7 @@ class SportMonksService
                 "{$this->baseUrl}/fixtures/date/{$date}",
                 [
                     'api_token' => $this->token,
-                    'include' => 'participants;venue;league;season;state;scores;timer'
+                    'include' => 'participants;venue;league;season;state;scores'
                 ]
             );
 
@@ -229,7 +229,7 @@ class SportMonksService
             // Build query parameters
             $params = [
                 'api_token' => $this->token,
-                'include' => 'participants;venue;league;season;state;scores;timer'
+                'include' => 'participants;venue;league;season;state;scores'
             ];
 
             // SportMonks v3 uses filter[field]=value format
@@ -278,7 +278,7 @@ class SportMonksService
                 "{$this->baseUrl}/fixtures/{$fixtureId}",
                 [
                     'api_token' => $this->token,
-                    'include' => 'participants;scores;events;statistics;venue;league;season;state;timer'
+                    'include' => 'participants;scores;events;statistics;venue;league;season;state'
                 ]
             );
 
