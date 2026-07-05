@@ -11,9 +11,18 @@ class LatePaymentReasonController extends Controller
     /**
      * Display a listing of the resource.
      */
-public function index()
+public function index(Request $request)
 {
-    $latePaymentReasons = LatePaymentReason::with('user')->latest()->get();
+    $perPage = $request->input('per_page', 15);
+    $search = $request->input('search', '');
+
+    $latePaymentReasonsQuery = LatePaymentReason::with('user')->latest();
+    if ($search) {
+        $latePaymentReasonsQuery->where(function($q) use ($search) {
+            $q->where('reason_text', 'like', "%{$search}%");
+        });
+    }
+    $latePaymentReasons = $latePaymentReasonsQuery->paginate($perPage);
 
     return response()->json([
         'latePaymentReasons' => $latePaymentReasons

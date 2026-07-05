@@ -12,9 +12,19 @@ class AnnouncementController extends Controller
     /**
      * Display all announcements (latest first)
      */
-    public function index()
+    public function index(Request $request)
     {
-        $announcements = Announcement::latest()->get();
+        $perPage = $request->input('per_page', 15);
+        $search = $request->input('search', '');
+
+        $announcementsQuery = Announcement::latest();
+        if ($search) {
+            $announcementsQuery->where(function($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('message', 'like', "%{$search}%");
+            });
+        }
+        $announcements = $announcementsQuery->paginate($perPage);
         return response()->json([
             'announcements' => $announcements
         ]);

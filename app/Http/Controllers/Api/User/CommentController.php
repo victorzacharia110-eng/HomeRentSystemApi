@@ -11,15 +11,22 @@ class CommentController extends Controller
     /**
      * Display a listing of comments
      */
-    public function index()
+    public function index(Request $request)
     {
-        $comments = Comment::with('user')
-            ->latest()
-            ->get();
+        $perPage = $request->input('per_page', 15);
+        $search = $request->input('search', '');
 
-            return response()->json([
-                'comments' => $comments
-            ]);
+        $commentsQuery = Comment::with('user')->latest();
+        if ($search) {
+            $commentsQuery->where(function($q) use ($search) {
+                $q->where('comment', 'like', "%{$search}%");
+            });
+        }
+        $comments = $commentsQuery->paginate($perPage);
+
+        return response()->json([
+            'comments' => $comments
+        ]);
     }
 
     /**

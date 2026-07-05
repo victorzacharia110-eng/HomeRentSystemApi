@@ -13,7 +13,7 @@ class PaymentController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = auth()->user();
 
@@ -47,7 +47,18 @@ class PaymentController extends Controller
                 'count_tenant_unpaid_payment' => $count_tenant_unpaid_payment
             ]);
         } else {
-            $payments = Payment::with("room")->orderBy("id", "desc")->get();
+            $perPage = $request->input('per_page', 15);
+            $search = $request->input('search', '');
+            $paymentsQuery = Payment::with("room")->orderBy("id", "desc");
+            if ($search) {
+                $paymentsQuery->where(function($q) use ($search) {
+                    $q->where('month', 'like', "%{$search}%")
+                      ->orWhere('year', 'like', "%{$search}%")
+                      ->orWhere('amount', 'like', "%{$search}%")
+                      ->orWhere('status', 'like', "%{$search}%");
+                });
+            }
+            $payments = $paymentsQuery->paginate($perPage);
             return response()->json(['payments' => $payments]);
         }
     }

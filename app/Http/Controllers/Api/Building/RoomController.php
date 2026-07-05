@@ -12,16 +12,25 @@ class RoomController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         // $user = auth()->user();
 
         // fetch rooms only for landlord
         $rooms = [];
 
-        // if ($user->is_landlord) {
-        $rooms = Room::with('user')->latest()->get();
-        // }
+        $perPage = $request->input('per_page', 15);
+        $search = $request->input('search', '');
+
+        $roomsQuery = Room::with('user')->latest();
+        if ($search) {
+            $roomsQuery->where(function($q) use ($search) {
+                $q->where('room_number', 'like', "%{$search}%")
+                  ->orWhere('type', 'like', "%{$search}%")
+                  ->orWhere('status', 'like', "%{$search}%");
+            });
+        }
+        $rooms = $roomsQuery->paginate($perPage);
 
         // stats visible to everyone
         $totalRooms = Room::count();

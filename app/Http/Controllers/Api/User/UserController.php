@@ -12,7 +12,7 @@ class UserController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = User::with(['room.latestPayment','criticalRemarks'])->where('id', '=', auth()->user()->id)->first();
         if (!$user) {
@@ -20,7 +20,18 @@ class UserController extends Controller
         }
 
         if ($user->is_landlord === 1) {
-            $users = User::with(['room.latestPayment','criticalRemarks'])->where('is_landlord','=', 0)->get();
+            $perPage = $request->input('per_page', 15);
+            $search = $request->input('search', '');
+            $usersQuery = User::with(['room.latestPayment','criticalRemarks'])
+                ->where('is_landlord', '=', 0);
+            if ($search) {
+                $usersQuery->where(function($q) use ($search) {
+                    $q->where('last_name', 'like', "%{$search}%")
+                      ->orWhere('phone_number', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%");
+                });
+            }
+            $users = $usersQuery->paginate($perPage);
 
             return response()->json([
                 'user' => $user,

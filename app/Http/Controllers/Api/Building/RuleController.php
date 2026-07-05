@@ -11,9 +11,20 @@ class RuleController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $rules = Rule::get();
+        $perPage = $request->input('per_page', 15);
+        $search = $request->input('search', '');
+
+        $rulesQuery = Rule::query();
+        if ($search) {
+            $rulesQuery->where(function($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhere('type', 'like', "%{$search}%");
+            });
+        }
+        $rules = $rulesQuery->paginate($perPage);
         return response()->json(['rules' => $rules]);
     }
 

@@ -13,22 +13,31 @@ class CriticalRemarkController extends Controller
      * Landlord sees ALL remarks (for all tenants)
      * Tenant sees ONLY remarks about themselves
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = auth()->user();
 
+        $perPage = $request->input('per_page', 15);
+        $search = $request->input('search', '');
+
         if ($user->is_landlord === 1) {
             // Landlord sees ALL remarks with tenant info
-            $criticalRemarks = CriticalRemark::with('user')
-                ->latest()
-                ->get();
+            $criticalRemarksQuery = CriticalRemark::with('user')->latest();
         } else {
             // Tenant sees ONLY remarks where user_id matches their ID
-            $criticalRemarks = CriticalRemark::with('user')
+            $criticalRemarksQuery = CriticalRemark::with('user')
                 ->where('user_id', $user->id)
-                ->latest()
-                ->get();
+                ->latest();
         }
+
+        if ($search) {
+            $criticalRemarksQuery->where(function($q) use ($search) {
+                $q->where('reason_text', 'like', "%{$search}%")
+                  ->orWhere('type', 'like', "%{$search}%");
+            });
+        }
+
+        $criticalRemarks = $criticalRemarksQuery->paginate($perPage);
 
         return response()->json([
             'criticalRemarks' => $criticalRemarks

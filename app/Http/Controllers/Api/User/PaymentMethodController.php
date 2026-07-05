@@ -11,9 +11,24 @@ class PaymentMethodController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $paymentMethods = PaymentMethod::orderBy("created_at", "desc")->get();
+        $perPage = $request->input('per_page', 15);
+        $search = $request->input('search', '');
+
+        $paymentMethodsQuery = PaymentMethod::orderBy("created_at", "desc");
+        if ($search) {
+            $paymentMethodsQuery->where(function($q) use ($search) {
+                $q->where('airtel_money_number', 'like', "%{$search}%")
+                  ->orWhere('m_pesa_number', 'like', "%{$search}%")
+                  ->orWhere('mixx_by_yas_number', 'like', "%{$search}%")
+                  ->orWhere('halopesa_number', 'like', "%{$search}%")
+                  ->orWhere('nmb_account_number', 'like', "%{$search}%")
+                  ->orWhere('crdb_account_number', 'like', "%{$search}%")
+                  ->orWhere('nbc_account_number', 'like', "%{$search}%");
+            });
+        }
+        $paymentMethods = $paymentMethodsQuery->paginate($perPage);
         return response()->json(['paymentMethods' => $paymentMethods]);
     }
 
