@@ -3,47 +3,67 @@
 namespace App\Http\Controllers\Api\Building;
 
 use App\Http\Controllers\Controller;
+use App\Models\RoomPhoto;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class RoomPhotoController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $request->validate(['room_id' => 'required|integer|exists:rooms,id']);
+
+        $photos = RoomPhoto::where('room_id', $request->room_id)->get();
+
+        return response()->json([
+            'status' => 'success',
+            'photos' => $photos,
+        ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'room_id' => 'required|integer|exists:rooms,id',
+            'photo'   => 'required|image|max:5120',
+        ]);
+
+        $path = $request->file('photo')->store('rooms', 'public');
+
+        $roomPhoto = RoomPhoto::create([
+            'room_id' => $request->room_id,
+            'photo'   => $path,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'photo'  => $roomPhoto,
+        ], 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(string $id)
     {
-        //
+        $photo = RoomPhoto::findOrFail($id);
+
+        return response()->json([
+            'status' => 'success',
+            'photo'  => $photo,
+        ]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(string $id)
     {
-        //
+        $photo = RoomPhoto::findOrFail($id);
+
+        if (Storage::disk('public')->exists($photo->photo)) {
+            Storage::disk('public')->delete($photo->photo);
+        }
+
+        $photo->delete();
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Photo deleted successfully',
+        ]);
     }
 }

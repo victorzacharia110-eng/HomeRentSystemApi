@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\App;
 
 use App\Http\Controllers\Api\Building\RoomController;
+use App\Http\Controllers\Api\Building\RoomPhotoController;
 use App\Http\Controllers\Api\Building\RuleController;
 use App\Http\Controllers\Api\Entertainment\Football\FootballController;
 use App\Http\Controllers\Api\User\AnnouncementController;
@@ -90,6 +91,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('room/update/{id}', [RoomController::class, 'update']);
     Route::patch('room/update/status/{id}', [RoomController::class, 'updateRoomStatus']);
     Route::delete('room/delete/{id}', [RoomController::class, 'destroy']);
+
+    // ROOM PHOTOS
+    Route::get('room-photos/fetch', [RoomPhotoController::class, 'index']);
+    Route::get('room-photos/show/{id}', [RoomPhotoController::class, 'show']);
+    Route::post('room-photos/create', [RoomPhotoController::class, 'store']);
+    Route::delete('room-photos/delete/{id}', [RoomPhotoController::class, 'destroy']);
 
     // PAYMENTS
     Route::get('payment/fetch', [PaymentController::class, 'index']);

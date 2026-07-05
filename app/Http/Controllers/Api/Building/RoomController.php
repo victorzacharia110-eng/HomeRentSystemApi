@@ -6,17 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Room;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class RoomController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
-        // $user = auth()->user();
-
-        // fetch rooms only for landlord
         $rooms = [];
 
         $perPage = $request->input('per_page', 15);
@@ -32,7 +27,6 @@ class RoomController extends Controller
         }
         $rooms = $roomsQuery->paginate($perPage);
 
-        // stats visible to everyone
         $totalRooms = Room::count();
         $roomCountAvailable = Room::where('status', 'Available')->count();
         $roomCountOccupied = Room::where('status', 'Occupied')->count();
@@ -47,9 +41,6 @@ class RoomController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $request->validate([
@@ -78,9 +69,7 @@ class RoomController extends Controller
         ]);
     }
 
-    /**
-     * Display the specified resource.
-     */ public function show(string $id)
+    public function show(string $id)
     {
         $room = Room::findOrFail($id);
 
@@ -89,22 +78,31 @@ class RoomController extends Controller
         ]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
         $request->validate([
             "room_number" => "required|string",
             "type" => "required|string",
             "status" => "required|string",
+            "photo" => "nullable|image|max:2048",
         ]);
-        $room = Room::find($id);
+
+        $room = Room::findOrFail($id);
         $room->room_number = $request->room_number;
         $room->type = $request->type;
         $room->status = $request->status;
+        $room->room_price = $request->room_price;
 
-        $room->update();
+        if ($request->hasFile('photo')) {
+            if ($room->photo && Storage::disk('public')->exists($room->photo)) {
+                Storage::disk('public')->delete($room->photo);
+            }
+            $path = $request->file('photo')->store('rooms', 'public');
+            $room->photo = $path;
+        }
+
+        $room->save();
+
         return response()->json([
             "room" => $room,
         ]);
@@ -112,23 +110,17 @@ class RoomController extends Controller
 
     public function updateRoomStatus(Request $request, string $id)
     {
-        // Validate input
         $request->validate([
             'status' => 'required|in:Available,Occupied,Maintenance',
         ]);
 
-        // Find room or fail automatically
         $roomStatus = Room::findOrFail($id);
-
-        // Update room
         $roomStatus->user_id = auth()->id();
         $roomStatus->status = $request->status;
         $roomStatus->save();
 
-        // Get logged-in user
         $user = auth()->user();
 
-        // Assign or remove room based on status
         if ($request->status === 'Occupied') {
             $user->room_id = $roomStatus->id;
         } else {
@@ -142,12 +134,15 @@ class RoomController extends Controller
             "room" => $roomStatus,
         ]);
     }
-    /**
-     * Remove the specified resource from storage.
-     */
+
     public function destroy(string $id)
     {
         $deleteRoom = Room::findOrFail($id);
+
+        if ($deleteRoom->photo && Storage::disk('public')->exists($deleteRoom->photo)) {
+            Storage::disk('public')->delete($deleteRoom->photo);
+        }
+
         $deleteRoom->delete();
 
         return response()->json([
