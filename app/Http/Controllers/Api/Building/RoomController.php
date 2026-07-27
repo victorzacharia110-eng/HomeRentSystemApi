@@ -27,6 +27,13 @@ class RoomController extends Controller
         }
         $rooms = $roomsQuery->paginate($perPage);
 
+        $rooms->getCollection()->transform(function ($room) {
+            if ($room->photo) {
+                $room->photo_url = Storage::disk('s3')->url($room->photo);
+            }
+            return $room;
+        });
+
         $totalRooms = Room::count();
         $roomCountAvailable = Room::where('status', 'Available')->count();
         $roomCountOccupied = Room::where('status', 'Occupied')->count();
@@ -57,11 +64,15 @@ class RoomController extends Controller
         $room->room_price = $request->room_price;
 
         if ($request->hasFile('photo')) {
-            $path = $request->file('photo')->store('rooms', 'public');
+            $path = $request->file('photo')->store('rooms', 's3');
             $room->photo = $path;
         }
 
         $room->save();
+
+        if ($room->photo) {
+            $room->photo_url = Storage::disk('s3')->url($room->photo);
+        }
 
         return response()->json([
             "status" => "success",
@@ -72,6 +83,10 @@ class RoomController extends Controller
     public function show(string $id)
     {
         $room = Room::findOrFail($id);
+
+        if ($room->photo) {
+            $room->photo_url = Storage::disk('s3')->url($room->photo);
+        }
 
         return response()->json([
             'room' => $room,
@@ -94,14 +109,18 @@ class RoomController extends Controller
         $room->room_price = $request->room_price;
 
         if ($request->hasFile('photo')) {
-            if ($room->photo && Storage::disk('public')->exists($room->photo)) {
-                Storage::disk('public')->delete($room->photo);
+            if ($room->photo && Storage::disk('s3')->exists($room->photo)) {
+                Storage::disk('s3')->delete($room->photo);
             }
-            $path = $request->file('photo')->store('rooms', 'public');
+            $path = $request->file('photo')->store('rooms', 's3');
             $room->photo = $path;
         }
 
         $room->save();
+
+        if ($room->photo) {
+            $room->photo_url = Storage::disk('s3')->url($room->photo);
+        }
 
         return response()->json([
             "room" => $room,
@@ -139,8 +158,8 @@ class RoomController extends Controller
     {
         $deleteRoom = Room::findOrFail($id);
 
-        if ($deleteRoom->photo && Storage::disk('public')->exists($deleteRoom->photo)) {
-            Storage::disk('public')->delete($deleteRoom->photo);
+        if ($deleteRoom->photo && Storage::disk('s3')->exists($deleteRoom->photo)) {
+            Storage::disk('s3')->delete($deleteRoom->photo);
         }
 
         $deleteRoom->delete();

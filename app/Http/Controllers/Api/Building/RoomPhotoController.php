@@ -15,6 +15,10 @@ class RoomPhotoController extends Controller
 
         $photos = RoomPhoto::where('room_id', $request->room_id)->get();
 
+        $photos->each(function ($photo) {
+            $photo->photo_url = Storage::disk('s3')->url($photo->photo);
+        });
+
         return response()->json([
             'status' => 'success',
             'photos' => $photos,
@@ -28,12 +32,14 @@ class RoomPhotoController extends Controller
             'photo'   => 'required|image|max:5120',
         ]);
 
-        $path = $request->file('photo')->store('rooms', 'public');
+        $path = $request->file('photo')->store('rooms', 's3');
 
         $roomPhoto = RoomPhoto::create([
             'room_id' => $request->room_id,
             'photo'   => $path,
         ]);
+
+        $roomPhoto->photo_url = Storage::disk('s3')->url($path);
 
         return response()->json([
             'status' => 'success',
@@ -44,6 +50,7 @@ class RoomPhotoController extends Controller
     public function show(string $id)
     {
         $photo = RoomPhoto::findOrFail($id);
+        $photo->photo_url = Storage::disk('s3')->url($photo->photo);
 
         return response()->json([
             'status' => 'success',
@@ -55,8 +62,8 @@ class RoomPhotoController extends Controller
     {
         $photo = RoomPhoto::findOrFail($id);
 
-        if (Storage::disk('public')->exists($photo->photo)) {
-            Storage::disk('public')->delete($photo->photo);
+        if (Storage::disk('s3')->exists($photo->photo)) {
+            Storage::disk('s3')->delete($photo->photo);
         }
 
         $photo->delete();

@@ -8,6 +8,7 @@ return [
 
     'allowed_origins' => [
         'https://familybiz.online',
+        'https://api.familybiz.online',
     ],
 
     'allowed_origins_patterns' => [],

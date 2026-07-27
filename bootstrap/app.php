@@ -14,16 +14,6 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
 
-        // REQUIRED FOR SANCTUM SPA AUTH
-        $middleware->api(prepend: [
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-        ]);
-
-        // Optional: Add CORS middleware if needed
-        // $middleware->api(prepend: [
-        //     \Illuminate\Http\Middleware\HandleCors::class,
-        // ]);
-
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // FIX: Always return JSON for API requests
@@ -31,16 +21,16 @@ return Application::configure(basePath: dirname(__DIR__))
             fn(Request $request) => $request->is('api/*') || $request->wantsJson()
         );
         
-        // Optional: Customize exception rendering for API
         $exceptions->render(function (Throwable $e, Request $request) {
             if ($request->is('api/*') || $request->wantsJson()) {
+                $status = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : ($e->getCode() ?: 500);
+                if (!is_numeric($status)) {
+                    $status = 500;
+                }
                 return response()->json([
                     'success' => false,
-                    'message' => $e->getMessage(),
-                    'exception' => get_class($e),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], $e->getCode() ?: 500);
+                    'message' => config('app.debug') ? $e->getMessage() : 'Internal server error.',
+                ], $status);
             }
         });
     })
