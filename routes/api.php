@@ -153,6 +153,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // LANDLORD UNCONFIRMED PAYMENTS
     Route::get('payment/unconfirmed', [UserController::class, 'getUnconfirmedPayments']);
 
+    // TENANT CANCEL PAYMENT
+    Route::patch('payment/cancel/{paymentId}', [UserController::class, 'cancelPayment']);
+
     // SUPER ADMIN ROUTES
     Route::prefix('admin')->middleware('admin')->group(function () {
         Route::get('landlords', [\App\Http\Controllers\Api\Admin\AdminController::class, 'getLandlords']);

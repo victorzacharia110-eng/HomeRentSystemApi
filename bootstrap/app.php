@@ -48,8 +48,15 @@ return Application::configure(basePath: dirname(__DIR__))
                     ], 403);
                 }
 
-                $status = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : ($e->getCode() ?: 500);
-                if (!is_numeric($status)) {
+                $status = 500;
+                if (method_exists($e, 'getStatusCode')) {
+                    $status = $e->getStatusCode();
+                } elseif ($e instanceof \Illuminate\Database\QueryException) {
+                    $status = 500;
+                } elseif (is_int($e->getCode()) && $e->getCode() > 0) {
+                    $status = $e->getCode();
+                }
+                if ($status < 100 || $status > 599) {
                     $status = 500;
                 }
                 return response()->json([

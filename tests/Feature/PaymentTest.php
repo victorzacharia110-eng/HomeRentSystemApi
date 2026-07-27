@@ -471,4 +471,77 @@ class PaymentTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $tenant->id, 'room_id' => $room->id]);
         $this->assertDatabaseHas('rooms', ['id' => $room->id, 'status' => 'Occupied']);
     }
+
+    // --- Cancel Payment ---
+
+    public function test_tenant_can_cancel_pending_payment(): void
+    {
+        $user = $this->createUser();
+        $room = $this->createRoom(['status' => 'Available']);
+        $this->authenticateAs($user);
+
+        $payment = $this->createPayment($user, $room, [
+            'status' => 'pending',
+        ]);
+
+        $response = $this->patchJson("/api/payment/cancel/{$payment->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('payment.status', 'cancelled')
+            ->assertJson(['message' => 'Payment cancelled successfully']);
+
+        $this->assertDatabaseHas('payments', ['id' => $payment->id, 'status' => 'cancelled']);
+    }
+
+    public function test_cancel_removes_room_selection(): void
+    {
+        $user = $this->createUser();
+        $room = $this->createRoom(['status' => 'Available']);
+        $this->authenticateAs($user);
+
+        \App\Models\RoomSelection::create(['user_id' => $user->id, 'room_id' => $room->id]);
+
+        $payment = $this->createPayment($user, $room, [
+            'status' => 'pending',
+        ]);
+
+        $this->assertDatabaseHas('room_selections', ['user_id' => $user->id, 'room_id' => $room->id]);
+
+        $this->patchJson("/api/payment/cancel/{$payment->id}");
+
+        $this->assertDatabaseMissing('room_selections', ['user_id' => $user->id, 'room_id' => $room->id]);
+    }
+
+    public function test_cannot_cancel_paid_payment(): void
+    {
+        $user = $this->createUser();
+        $room = $this->createRoom();
+        $this->authenticateAs($user);
+
+        $payment = $this->createPayment($user, $room, [
+            'status' => 'paid',
+        ]);
+
+        $response = $this->patchJson("/api/payment/cancel/{$payment->id}");
+
+        $response->assertStatus(400)
+            ->assertJson(['message' => 'Only pending payments can be cancelled']);
+    }
+
+    public function test_cannot_cancel_other_users_payment(): void
+    {
+        $user1 = $this->createUser(['email' => 'user1@example.com']);
+        $user2 = $this->createUser(['email' => 'user2@example.com']);
+        $room = $this->createRoom();
+        $this->authenticateAs($user1);
+
+        $payment = $this->createPayment($user2, $room, [
+            'status' => 'pending',
+        ]);
+
+        $response = $this->patchJson("/api/payment/cancel/{$payment->id}");
+
+        $response->assertStatus(403)
+            ->assertJson(['message' => 'Unauthorized']);
+    }
 }
