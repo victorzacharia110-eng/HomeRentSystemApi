@@ -18,6 +18,8 @@ class User extends Authenticatable implements CanResetPassword
         'email',
         'password',
         'is_landlord',
+        'is_super_admin',
+        'is_active',
         'room_id'
     ];
 
@@ -31,6 +33,9 @@ class User extends Authenticatable implements CanResetPassword
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_landlord' => 'boolean',
+            'is_super_admin' => 'boolean',
+            'is_active' => 'boolean',
         ];
     }
 
@@ -51,5 +56,15 @@ class User extends Authenticatable implements CanResetPassword
     public function criticalRemarks()
     {
         return $this->hasMany(CriticalRemark::class);
+    }
+
+    public function latePaymentReasons()
+    {
+        return $this->hasMany(LatePaymentReason::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
     }
 }

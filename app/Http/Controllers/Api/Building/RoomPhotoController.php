@@ -32,7 +32,7 @@ class RoomPhotoController extends Controller
             'photo'   => 'required|image|max:5120',
         ]);
 
-        $path = $request->file('photo')->store('rooms', 's3');
+        $path = $request->file('photo')->store('rooms', 's3', 'public');
 
         $roomPhoto = RoomPhoto::create([
             'room_id' => $request->room_id,

@@ -15,19 +15,24 @@ class Payment extends Model
         'amount', 
         'status', 
         'due_date',
-        'clickpesa_transaction_id',  // ✅ ADD THIS
-        'clickpesa_response',         // ✅ ADD THIS
-        'paid_at'                     // ✅ ADD THIS
+        'clickpesa_transaction_id',
+        'clickpesa_response',
+        'paid_at',
+        'payment_method',
+        'confirmed_by_landlord',
+        'room_selected',
+        'confirmation_message'
     ];
 
     protected $appends = ['month_name', 'due_date_formatted'];
 
-    // ✅ ADD CASTS for proper data types
     protected $casts = [
         'paid_at' => 'datetime',
         'due_date' => 'date',
-        'clickpesa_response' => 'array',  // Automatically converts JSON to array
-        'amount' => 'decimal:2'
+        'clickpesa_response' => 'array',
+        'amount' => 'decimal:2',
+        'confirmed_by_landlord' => 'boolean',
+        'room_selected' => 'boolean'
     ];
 
     public function user()
@@ -63,7 +68,6 @@ class Payment extends Model
         return Carbon::parse($this->due_date)->format('d M Y');
     }
 
-    // ✅ ADD HELPER METHODS (Optional but useful)
     public function isPaid()
     {
         return $this->status === 'paid';

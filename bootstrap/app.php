@@ -13,10 +13,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->alias([
+            'admin' => \App\Http\Middleware\SuperAdminMiddleware::class,
+        ]);
 
+        // Removed EnsureFrontendRequestsAreStateful - using token-based auth
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        // FIX: Always return JSON for API requests
         $exceptions->shouldRenderJsonWhen(
             fn(Request $request) => $request->is('api/*') || $request->wantsJson()
         );

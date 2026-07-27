@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\User;
 
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
+use App\Models\RoomSelection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -108,6 +109,29 @@ class PaymentController extends Controller
         // Store the full callback response for reference
         $payment->clickpesa_response = json_encode($payload);
         $payment->save();
+
+        // Auto-assign room if payment is successful and was from room selection
+        if ($payment->status === 'paid' && $payment->room_id) {
+            $tenant = $payment->user;
+            if ($tenant && !$tenant->room_id) {
+                $tenant->room_id = $payment->room_id;
+                $tenant->save();
+
+                $room = $payment->room;
+                if ($room && $room->status !== 'Occupied') {
+                    $room->status = 'Occupied';
+                    $room->user_id = $tenant->id;
+                    $room->save();
+                }
+
+                $payment->room_selected = true;
+                $payment->confirmation_message = "Payment confirmed via ClickPesa callback. Room auto-assigned.";
+                $payment->save();
+
+                // Clean up room selections
+                RoomSelection::where('user_id', $tenant->id)->delete();
+            }
+        }
 
         return response()->json([
             'message' => 'Callback processed successfully',

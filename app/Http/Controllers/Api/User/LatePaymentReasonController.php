@@ -8,33 +8,28 @@ use Illuminate\Http\Request;
 
 class LatePaymentReasonController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-public function index(Request $request)
-{
-    $perPage = $request->input('per_page', 15);
-    $search = $request->input('search', '');
+    public function index(Request $request)
+    {
+        $perPage = $request->input('per_page', 15);
+        $search = $request->input('search', '');
 
-    $latePaymentReasonsQuery = LatePaymentReason::with('user')->latest();
-    if ($search) {
-        $latePaymentReasonsQuery->where(function($q) use ($search) {
-            $q->where('reason_text', 'like', "%{$search}%");
-        });
+        $latePaymentReasonsQuery = LatePaymentReason::with('user')->latest();
+        if ($search) {
+            $latePaymentReasonsQuery->where(function($q) use ($search) {
+                $q->where('reason_text', 'like', "%{$search}%");
+            });
+        }
+        $latePaymentReasons = $latePaymentReasonsQuery->paginate($perPage);
+
+        return response()->json([
+            'latePaymentReasons' => $latePaymentReasons
+        ]);
     }
-    $latePaymentReasons = $latePaymentReasonsQuery->paginate($perPage);
 
-    return response()->json([
-        'latePaymentReasons' => $latePaymentReasons
-    ]);
-}
-
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $request->validate([
+            'payment_id' => 'required|exists:payments,id',
             'reason_text' => 'required|string|max:255'
         ]);
 
@@ -47,27 +42,27 @@ public function index(Request $request)
         return response()->json(['latePaymentReason' => $latePaymentReason]);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(string $id)
     {
-        //
+        $latePaymentReason = LatePaymentReason::with('user')->findOrFail($id);
+        return response()->json(['latePaymentReason' => $latePaymentReason]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
-        //
+        $request->validate([
+            'reason_text' => 'sometimes|string|max:255'
+        ]);
+
+        $latePaymentReason = LatePaymentReason::findOrFail($id);
+        $latePaymentReason->update($request->only(['reason_text']));
+        return response()->json(['latePaymentReason' => $latePaymentReason]);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(string $id)
     {
-        //
+        $latePaymentReason = LatePaymentReason::findOrFail($id);
+        $latePaymentReason->delete();
+        return response()->json(['message' => 'Late payment reason deleted successfully']);
     }
 }

@@ -140,4 +140,25 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('comments/create', [CommentController::class, 'store']);
     Route::patch('comments/update/{id}', [CommentController::class, 'update']);
     Route::delete('comments/delete/{id}', [CommentController::class, 'destroy']);
+
+    // PROFILE UPDATE
+    Route::patch('user/update/profile/{id}', [UserController::class, 'update']);
+
+    // ROOM SELECTION WITH PAYMENT
+    Route::post('room/select/{roomId}', [UserController::class, 'selectRoom']);
+
+    // LANDLORD CONFIRM PAYMENT
+    Route::patch('payment/confirm/{paymentId}', [UserController::class, 'confirmPayment']);
+
+    // LANDLORD UNCONFIRMED PAYMENTS
+    Route::get('payment/unconfirmed', [UserController::class, 'getUnconfirmedPayments']);
+
+    // SUPER ADMIN ROUTES
+    Route::prefix('admin')->middleware('admin')->group(function () {
+        Route::get('landlords', [\App\Http\Controllers\Api\Admin\AdminController::class, 'getLandlords']);
+        Route::get('tenants', [\App\Http\Controllers\Api\Admin\AdminController::class, 'getTenants']);
+        Route::patch('user/{userId}/reset-password', [\App\Http\Controllers\Api\Admin\AdminController::class, 'resetUserPassword']);
+        Route::patch('landlord/{userId}/toggle-status', [\App\Http\Controllers\Api\Admin\AdminController::class, 'toggleLandlordStatus']);
+        Route::patch('user/{userId}/toggle-status', [\App\Http\Controllers\Api\Admin\AdminController::class, 'toggleUserStatus']);
+    });
 });
