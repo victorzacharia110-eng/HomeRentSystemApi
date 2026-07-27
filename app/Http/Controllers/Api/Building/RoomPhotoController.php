@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api\Building;
 use App\Http\Controllers\Controller;
 use App\Models\RoomPhoto;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class RoomPhotoController extends Controller
 {
@@ -16,7 +15,7 @@ class RoomPhotoController extends Controller
         $photos = RoomPhoto::where('room_id', $request->room_id)->get();
 
         $photos->each(function ($photo) {
-            $photo->photo_url = Storage::disk('s3')->url($photo->photo);
+            $photo->photo_url = $photo->photo;
         });
 
         return response()->json([
@@ -29,17 +28,15 @@ class RoomPhotoController extends Controller
     {
         $request->validate([
             'room_id' => 'required|integer|exists:rooms,id',
-            'photo'   => 'required|image|max:5120',
+            'photo'   => 'required|string|max:10240',
         ]);
-
-        $path = $request->file('photo')->store('rooms', 's3');
 
         $roomPhoto = RoomPhoto::create([
             'room_id' => $request->room_id,
-            'photo'   => $path,
+            'photo'   => $request->photo,
         ]);
 
-        $roomPhoto->photo_url = Storage::disk('s3')->url($path);
+        $roomPhoto->photo_url = $roomPhoto->photo;
 
         return response()->json([
             'status' => 'success',
@@ -50,7 +47,7 @@ class RoomPhotoController extends Controller
     public function show(string $id)
     {
         $photo = RoomPhoto::findOrFail($id);
-        $photo->photo_url = Storage::disk('s3')->url($photo->photo);
+        $photo->photo_url = $photo->photo;
 
         return response()->json([
             'status' => 'success',
@@ -61,9 +58,6 @@ class RoomPhotoController extends Controller
     public function destroy(string $id)
     {
         $photo = RoomPhoto::findOrFail($id);
-
-        Storage::disk('s3')->delete($photo->photo);
-
         $photo->delete();
 
         return response()->json([

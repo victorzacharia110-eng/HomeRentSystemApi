@@ -6,14 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Room;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class RoomController extends Controller
 {
     public function index(Request $request)
     {
-        $rooms = [];
-
         $perPage = $request->input('per_page', 15);
         $search = $request->input('search', '');
 
@@ -28,9 +25,7 @@ class RoomController extends Controller
         $rooms = $roomsQuery->paginate($perPage);
 
         $rooms->getCollection()->transform(function ($room) {
-            if ($room->photo) {
-                $room->photo_url = Storage::disk('s3')->url($room->photo);
-            }
+            $room->photo_url = $room->photo ?: null;
             return $room;
         });
 
@@ -54,7 +49,7 @@ class RoomController extends Controller
             "room_number" => "required|string",
             "type" => "required|string",
             "status" => "required|string",
-            "photo" => "nullable|image|max:2048"
+            "photo" => "nullable|string|max:10240",
         ]);
 
         $room = new Room();
@@ -63,16 +58,13 @@ class RoomController extends Controller
         $room->status = $request->status;
         $room->room_price = $request->room_price;
 
-        if ($request->hasFile('photo')) {
-            $path = $request->file('photo')->store('rooms', 's3');
-            $room->photo = $path;
+        if ($request->filled('photo')) {
+            $room->photo = $request->photo;
         }
 
         $room->save();
 
-        if ($room->photo) {
-            $room->photo_url = Storage::disk('s3')->url($room->photo);
-        }
+        $room->photo_url = $room->photo ?: null;
 
         return response()->json([
             "status" => "success",
@@ -84,9 +76,7 @@ class RoomController extends Controller
     {
         $room = Room::findOrFail($id);
 
-        if ($room->photo) {
-            $room->photo_url = Storage::disk('s3')->url($room->photo);
-        }
+        $room->photo_url = $room->photo ?: null;
 
         return response()->json([
             'room' => $room,
@@ -99,7 +89,7 @@ class RoomController extends Controller
             "room_number" => "required|string",
             "type" => "required|string",
             "status" => "required|string",
-            "photo" => "nullable|image|max:2048",
+            "photo" => "nullable|string|max:10240",
         ]);
 
         $room = Room::findOrFail($id);
@@ -108,19 +98,13 @@ class RoomController extends Controller
         $room->status = $request->status;
         $room->room_price = $request->room_price;
 
-        if ($request->hasFile('photo')) {
-            if ($room->photo) {
-                Storage::disk('s3')->delete($room->photo);
-            }
-            $path = $request->file('photo')->store('rooms', 's3');
-            $room->photo = $path;
+        if ($request->has('photo')) {
+            $room->photo = $request->photo ?: null;
         }
 
         $room->save();
 
-        if ($room->photo) {
-            $room->photo_url = Storage::disk('s3')->url($room->photo);
-        }
+        $room->photo_url = $room->photo ?: null;
 
         return response()->json([
             "room" => $room,
@@ -157,11 +141,6 @@ class RoomController extends Controller
     public function destroy(string $id)
     {
         $deleteRoom = Room::findOrFail($id);
-
-        if ($deleteRoom->photo) {
-            Storage::disk('s3')->delete($deleteRoom->photo);
-        }
-
         $deleteRoom->delete();
 
         return response()->json([
