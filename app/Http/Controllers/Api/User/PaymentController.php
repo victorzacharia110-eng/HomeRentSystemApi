@@ -18,7 +18,7 @@ class PaymentController extends Controller
     {
         $user = auth()->user();
 
-        if ($user->is_landlord === 0) {
+        if (!$user->is_landlord) {
             // Get current month and year
             $currentMonth = now()->month;
             $currentYear = now()->year;

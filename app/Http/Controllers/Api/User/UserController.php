@@ -18,7 +18,7 @@ class UserController extends Controller
             return response()->json(['error' => 'Unauthenticated'], 401);
         }
 
-        if ($user->is_landlord === 1) {
+        if ($user->is_landlord) {
             $perPage = $request->input('per_page', 15);
             $search = $request->input('search', '');
             $usersQuery = User::with(['room.latestPayment','criticalRemarks'])
@@ -144,7 +144,7 @@ class UserController extends Controller
     public function confirmPayment(Request $request, string $paymentId)
     {
         $user = auth()->user();
-        if ($user->is_landlord !== 1) {
+        if (!$user->is_landlord) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
