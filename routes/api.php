@@ -156,6 +156,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // TENANT CANCEL PAYMENT
     Route::patch('payment/cancel/{paymentId}', [UserController::class, 'cancelPayment']);
 
+    // LANDLORD REJECT PAYMENT
+    Route::patch('payment/reject/{paymentId}', [UserController::class, 'rejectPayment']);
+
     // SUPER ADMIN ROUTES
     Route::prefix('admin')->middleware('admin')->group(function () {
         Route::get('landlords', [\App\Http\Controllers\Api\Admin\AdminController::class, 'getLandlords']);

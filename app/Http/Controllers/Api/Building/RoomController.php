@@ -109,7 +109,7 @@ class RoomController extends Controller
         $room->room_price = $request->room_price;
 
         if ($request->hasFile('photo')) {
-            if ($room->photo && Storage::disk('s3')->exists($room->photo)) {
+            if ($room->photo) {
                 Storage::disk('s3')->delete($room->photo);
             }
             $path = $request->file('photo')->store('rooms', 's3', 'public');
@@ -158,7 +158,7 @@ class RoomController extends Controller
     {
         $deleteRoom = Room::findOrFail($id);
 
-        if ($deleteRoom->photo && Storage::disk('s3')->exists($deleteRoom->photo)) {
+        if ($deleteRoom->photo) {
             Storage::disk('s3')->delete($deleteRoom->photo);
         }
 

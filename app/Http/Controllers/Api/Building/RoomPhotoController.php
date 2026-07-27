@@ -62,9 +62,7 @@ class RoomPhotoController extends Controller
     {
         $photo = RoomPhoto::findOrFail($id);
 
-        if (Storage::disk('s3')->exists($photo->photo)) {
-            Storage::disk('s3')->delete($photo->photo);
-        }
+        Storage::disk('s3')->delete($photo->photo);
 
         $photo->delete();
 

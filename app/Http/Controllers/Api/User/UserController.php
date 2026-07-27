@@ -215,6 +215,29 @@ class UserController extends Controller
         return response()->json(['payment' => $payment, 'message' => 'Payment cancelled successfully']);
     }
 
+    public function rejectPayment(string $paymentId)
+    {
+        $user = auth()->user();
+        if (!$user->is_landlord) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $payment = Payment::findOrFail($paymentId);
+
+        if ($payment->status !== 'pending') {
+            return response()->json(['message' => 'Only pending payments can be rejected'], 400);
+        }
+
+        $payment->status = 'failed';
+        $payment->save();
+
+        RoomSelection::where('user_id', $payment->user_id)
+            ->where('room_id', $payment->room_id)
+            ->delete();
+
+        return response()->json(['payment' => $payment, 'message' => 'Payment rejected successfully']);
+    }
+
     public function destroy(string $id)
     {
         $user = User::find($id);
