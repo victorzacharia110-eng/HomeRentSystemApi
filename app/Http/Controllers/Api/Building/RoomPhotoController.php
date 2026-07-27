@@ -28,7 +28,7 @@ class RoomPhotoController extends Controller
     {
         $request->validate([
             'room_id' => 'required|integer|exists:rooms,id',
-            'photo'   => 'required|string|max:10240',
+            'photo'   => 'required|string|max:20480000',
         ]);
 
         $roomPhoto = RoomPhoto::create([

@@ -49,7 +49,7 @@ class RoomController extends Controller
             "room_number" => "required|string",
             "type" => "required|string",
             "status" => "required|string",
-            "photo" => "nullable|string|max:10240",
+            "photo" => "nullable|string|max:20480000",
         ]);
 
         $room = new Room();
@@ -89,7 +89,7 @@ class RoomController extends Controller
             "room_number" => "required|string",
             "type" => "required|string",
             "status" => "required|string",
-            "photo" => "nullable|string|max:10240",
+            "photo" => "nullable|string|max:20480000",
         ]);
 
         $room = Room::findOrFail($id);
